@@ -6,6 +6,8 @@
   "main": "index.js",
   "scripts": {
     "start": "tsx src/index.ts",
+    "start:part1": "tsx solutions/part1/src/index.ts",
+    "start:part2": "tsx solutions/part2/src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
