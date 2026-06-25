@@ -1,0 +1,38 @@
+mcp:
+  port: 3000
+  policies:
+    cors:
+      allowOrigins:
+      - '*'
+      - http://localhost:15000
+      allowHeaders:
+      - '*'
+      exposeHeaders:
+      - Mcp-Session-Id
+      allowMethods:
+      - GET
+      - POST
+    mcpAuthentication:
+      issuer: http://localhost:8080/realms/ai-mesh
+      audiences:
+      - account
+      jwks:
+        url: http://localhost:8080/realms/ai-mesh/protocol/openid-connect/certs
+      provider:
+        keycloak: {}
+      resourceMetadata:
+        resource: http://localhost:3000/mcp
+        scopesSupported:
+        - read:all
+        bearerMethodsSupported:
+        - header
+    mcpAuthorization:
+      rules:
+          - deny: 'mcp.tool.name == "delete_customer_account" && !("mcp_admin" in jwt.realm_access.roles)'
+
+  targets:
+  - name: customer-ops-server
+    sse:
+      host: localhost
+      port: 9000
+      path: /sse
