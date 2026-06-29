@@ -1,0 +1,104 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  labels:
+    gatekeeper.sh/system: "yes"
+  name: gatekeeper-validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURNVENDQWhtZ0F3SUJBZ0lCQURBTkJna3Foa2lHOXcwQkFRc0ZBREF0TVJNd0VRWURWUVFLRXdwbllYUmwKYTJWbGNHVnlNUll3RkFZRFZRUURFdzFuWVhSbGEyVmxjR1Z5TFdOaE1CNFhEVEkyTURZeU56QTROVGN4TjFvWApEVE0yTURZeU5EQTVOVGN4TjFvd0xURVRNQkVHQTFVRUNoTUtaMkYwWld0bFpYQmxjakVXTUJRR0ExVUVBeE1OCloyRjBaV3RsWlhCbGNpMWpZVENDQVNJd0RRWUpLb1pJaHZjTkFRRUJCUUFEZ2dFUEFEQ0NBUW9DZ2dFQkFOeUwKMmRyNVZyK250UFVuT3prS2l2QndDTWphNkJtdGhRa2ZyUkZ0Z0NKYmJDY1JoOWxSUFpYTlRURzBXbC95b3FXegozNmJpSXVTZXo3QmsrRURGOFdTR0dadEpRenJ4MFRIdTh3clh1MWRvb0swdkliZGFleG5OdWk4WDNlR3NUNU50CmhKcHZ6ZGZIOVpHZFc2RjZsRm1oWGRHdUFrc3BGZkxOc0pqbGtMb0ovb1lDUFlQeTRTdloyZ05Nand6ajM0VUEKV3o5ckVtS1c1OW0wTGg1aFk1VUIrbzdSS29NaUkvVHBqKzFxaGcvUnJVb09RN3hNNkszRFp0NnpTcVlwQmMwSQp6b2k3M01zQnVjZXpQM0NmekRCc1BVMnQrWUJOTGpuMUtKeHpickZUMnVvanc3TzFsOTNRa1dJMklkQWNzTlFTCjE5RG0xdWJHWnF0Qk02VDJXRGtDQXdFQUFhTmNNRm93RGdZRFZSMFBBUUgvQkFRREFnS2tNQThHQTFVZEV3RUIKL3dRRk1BTUJBZjh3SFFZRFZSME9CQllFRlA4a2RqTDVuLzEvQUVBckNWWitwVkxPY0gzRU1CZ0dBMVVkRVFRUgpNQStDRFdkaGRHVnJaV1Z3WlhJdFkyRXdEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBQlo0WjR3Z3FYZ25lOGQrCitVdnFGeExZeFh3S2g2QUVJaEZMMFl2U3lZT3F4Sjlnck9PSk5PV2NDdmp3dERUOHpKVkhzUVEzbW4xUmdPTUgKd2Q1TnVuMHcrUlpSRkl3T2c0N25ValZpcTZ1bjZ4cmhZZFgwMmxWaGJFVXZBSVRyYTByaHdZcVdESUIzWUc3ZQo5bVJqdEJnNVR5bm5MOSsvbEM4M3plTkFBSEExSzZsVUduM2FTaEx6K2czVDNFSUJJQ2xYMG5IQXNKcVBmdkNXCndjTStETXVKbzhLZHlOdHAxaVVEdWZuaFBhUjk4Qzl0U3FwcndzSFlQSmVrb0w0Z0UrMTlGZWRmNTZFOGprNUsKWlF6SmJBNkZPM1lsTEtrdkRyd21ja2lpUlRCS3BYUzBDN0VWTE9YZ3RwRVBsSkNKQkZ0VGRGN1VHeElQaEpMRwo2Tzlab3FNPQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+    service:
+      name: gatekeeper-webhook-service
+      namespace: gatekeeper-system
+      path: /v1/admit
+      port: 443
+  failurePolicy: Ignore
+  matchPolicy: Exact
+  name: validation.gatekeeper.sh
+  namespaceSelector:
+    matchExpressions:
+    - key: admission.gatekeeper.sh/ignore
+      operator: DoesNotExist
+    - key: kubernetes.io/metadata.name
+      operator: NotIn
+      values:
+      - gatekeeper-system
+  objectSelector: {}
+  rules:
+  - apiGroups:
+    - '*'
+    apiVersions:
+    - '*'
+    operations:
+    - CREATE
+    - UPDATE
+    - CONNECT  # <-- Added
+    resources:
+    - '*'
+    - pods/ephemeralcontainers
+    - pods/exec
+    - pods/log
+    - pods/eviction
+    - pods/portforward
+    - pods/proxy
+    - pods/attach
+    - pods/binding
+    - deployments/scale
+    - replicasets/scale
+    - statefulsets/scale
+    - replicationcontrollers/scale
+    - services/proxy
+    - nodes/proxy
+    - services/status
+    scope: '*'
+  sideEffects: None
+  timeoutSeconds: 3
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURNVENDQWhtZ0F3SUJBZ0lCQURBTkJna3Foa2lHOXcwQkFRc0ZBREF0TVJNd0VRWURWUVFLRXdwbllYUmwKYTJWbGNHVnlNUll3RkFZRFZRUURFdzFuWVhSbGEyVmxjR1Z5TFdOaE1CNFhEVEkyTURZeU56QTROVGN4TjFvWApEVE0yTURZeU5EQTVOVGN4TjFvd0xURVRNQkVHQTFVRUNoTUtaMkYwWld0bFpYQmxjakVXTUJRR0ExVUVBeE1OCloyRjBaV3RsWlhCbGNpMWpZVENDQVNJd0RRWUpLb1pJaHZjTkFRRUJCUUFEZ2dFUEFEQ0NBUW9DZ2dFQkFOeUwKMmRyNVZyK250UFVuT3prS2l2QndDTWphNkJtdGhRa2ZyUkZ0Z0NKYmJDY1JoOWxSUFpYTlRURzBXbC95b3FXegozNmJpSXVTZXo3QmsrRURGOFdTR0dadEpRenJ4MFRIdTh3clh1MWRvb0swdkliZGFleG5OdWk4WDNlR3NUNU50CmhKcHZ6ZGZIOVpHZFc2RjZsRm1oWGRHdUFrc3BGZkxOc0pqbGtMb0ovb1lDUFlQeTRTdloyZ05Nand6ajM0VUEKV3o5ckVtS1c1OW0wTGg1aFk1VUIrbzdSS29NaUkvVHBqKzFxaGcvUnJVb09RN3hNNkszRFp0NnpTcVlwQmMwSQp6b2k3M01zQnVjZXpQM0NmekRCc1BVMnQrWUJOTGpuMUtKeHpickZUMnVvanc3TzFsOTNRa1dJMklkQWNzTlFTCjE5RG0xdWJHWnF0Qk02VDJXRGtDQXdFQUFhTmNNRm93RGdZRFZSMFBBUUgvQkFRREFnS2tNQThHQTFVZEV3RUIKL3dRRk1BTUJBZjh3SFFZRFZSME9CQllFRlA4a2RqTDVuLzEvQUVBckNWWitwVkxPY0gzRU1CZ0dBMVVkRVFRUgpNQStDRFdkaGRHVnJaV1Z3WlhJdFkyRXdEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBQlo0WjR3Z3FYZ25lOGQrCitVdnFGeExZeFh3S2g2QUVJaEZMMFl2U3lZT3F4Sjlnck9PSk5PV2NDdmp3dERUOHpKVkhzUVEzbW4xUmdPTUgKd2Q1TnVuMHcrUlpSRkl3T2c0N25ValZpcTZ1bjZ4cmhZZFgwMmxWaGJFVXZBSVRyYTByaHdZcVdESUIzWUc3ZQo5bVJqdEJnNVR5bm5MOSsvbEM4M3plTkFBSEExSzZsVUduM2FTaEx6K2czVDNFSUJJQ2xYMG5IQXNKcVBmdkNXCndjTStETXVKbzhLZHlOdHAxaVVEdWZuaFBhUjk4Qzl0U3FwcndzSFlQSmVrb0w0Z0UrMTlGZWRmNTZFOGprNUsKWlF6SmJBNkZPM1lsTEtrdkRyd21ja2lpUlRCS3BYUzBDN0VWTE9YZ3RwRVBsSkNKQkZ0VGRGN1VHeElQaEpMRwo2Tzlab3FNPQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+    service:
+      name: gatekeeper-webhook-service
+      namespace: gatekeeper-system
+      path: /v1/admitlabel
+      port: 443
+  failurePolicy: Fail
+  matchPolicy: Exact
+  name: check-ignore-label.gatekeeper.sh
+  namespaceSelector:
+    matchExpressions:
+    - key: kubernetes.io/metadata.name
+      operator: NotIn
+      values:
+      - gatekeeper-system
+  objectSelector: {}
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - '*'
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - namespaces
+    scope: '*'
+  sideEffects: None
+  timeoutSeconds: 3
+
+
+
+
+# kubectl patch validatingwebhookconfiguration gatekeeper-validating-webhook-configuration \
+#   --type='json' \
+#   -p='[
+#     {
+#       "op":"add",
+#       "path":"/webhooks/0/rules/0/operations/-",
+#       "value":"CONNECT"
+#     }
+#   ]'

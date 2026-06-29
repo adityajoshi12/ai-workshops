@@ -1,0 +1,8 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sBlockExec
+metadata:
+  name: deny-exec-production
+spec:
+  match:
+    namespaces:
+      - production

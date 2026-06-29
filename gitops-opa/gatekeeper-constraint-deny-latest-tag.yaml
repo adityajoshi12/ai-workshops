@@ -1,0 +1,31 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8sdisallowlatesttag
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sDisallowLatestTag
+  targets:
+  - target: admission.k8s.gatekeeper.sh
+    rego: |
+      package k8sdisallowlatesttag
+
+      violation[{"msg": msg}] {
+        container := input.review.object.spec.containers[_]
+        endswith(container.image, ":latest")
+        msg := sprintf("Container '%v' uses the forbidden ':latest' tag (%v)", [container.name, container.image])
+      }
+
+      violation[{"msg": msg}] {
+        container := input.review.object.spec.initContainers[_]
+        endswith(container.image, ":latest")
+        msg := sprintf("Init container '%v' uses the forbidden ':latest' tag (%v)", [container.name, container.image])
+      }
+
+      violation[{"msg": msg}] {
+        container := input.review.object.spec.ephemeralContainers[_]
+        endswith(container.image, ":latest")
+        msg := sprintf("Ephemeral container '%v' uses the forbidden ':latest' tag (%v)", [container.name, container.image])
+      }

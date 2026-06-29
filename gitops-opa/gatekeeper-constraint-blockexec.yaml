@@ -1,0 +1,21 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8sblockexec
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sBlockExec
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sblockexec
+
+        violation[{"msg": msg}] {
+          input.review.operation == "CONNECT"
+          input.review.kind.kind == "PodExecOptions"
+          input.review.namespace == "production"
+
+          msg := sprintf("kubectl exec is not allowed in namespace %v", [input.review.namespace])
+        }
