@@ -1,12 +1,3 @@
-.vscode
-.env
-node_modules
-dist
-*.log
-*.demo-secrets
-.adk
-__pycache__
-.venv
 # Secrets - never commit API keys
 .env
 **/.env
