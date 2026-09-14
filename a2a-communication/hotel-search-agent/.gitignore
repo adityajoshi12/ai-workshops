@@ -1,0 +1,21 @@
+node_modules/
+npm-debug.log
+
+# Environments
+.env
+!.env.example
+
+# Logs
+*.log
+
+# OS/editor cruft
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Credentials
+*.pem
+*-key.json
+credentials*.json

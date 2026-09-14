@@ -1,0 +1,24 @@
+{
+  "name": "hotel-search-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A2A hotel search agent - LangGraph.js + Vertex AI (Gemini), deployed to a bare Compute Engine VM. Speaks the same A2A wire protocol as the ADK-based agents in this demo, from a different language and framework.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@a2a-js/sdk": "^1.1.0",
+    "@langchain/google-vertexai": "^2.3.2",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "langchain": "^1.5.11",
+    "zod": "^4.6.4"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
