@@ -1,0 +1,14 @@
+logs/
+.DS_Store
+*.pyc
+__pycache__/
+.venv/
+.vscode/
+node_modules/
+.env
+!.env.example
+
+# Presentation build artifacts - reproducible from .ai/notes/*.md +
+# .ai/settings/*.css via the ppt skill's marp-cli pipeline. Keep source,
+# not binaries.
+.ai/presentations/
