@@ -124,18 +124,9 @@ gcloud builds submit --project=gde-workspace --tag gcr.io/gde-workspace/flight-s
 kubectl set image deployment/flight-search-agent flight-search-agent=gcr.io/gde-workspace/flight-search-agent -n flight-search-agent
 ```
 
-#### 3. Verify the LoadBalancer is external
-In this repository, [service.tf](file:///Users/adityajoshi/development/ai-workshops/a2a-communication/flight-search-agent/deployment/terraform/single-project/service.tf#L145) is **already configured for an external LoadBalancer** (`annotations = {}`, removing the default `cloud.google.com/load-balancer-type = "Internal"`).
+#### 3. Grab the external IP & set `APP_URL`
+The LoadBalancer is **automatically provisioned as external** because [service.tf](file:///Users/adityajoshi/development/ai-workshops/a2a-communication/flight-search-agent/deployment/terraform/single-project/service.tf#L145) has `annotations = {}` (no manual `kubectl patch` needed).
 
-If starting from a fresh unmodified scaffold that defaulted to an internal LoadBalancer, you can patch it to be externally reachable:
-
-```bash
-kubectl patch svc flight-search-agent -n flight-search-agent \
-  --type=json \
-  -p='[{"op":"remove","path":"/metadata/annotations/cloud.google.com~1load-balancer-type"}]'
-```
-
-#### 4. Grab the external IP & set `APP_URL`
 Wait until `EXTERNAL-IP` is populated:
 
 ```bash
