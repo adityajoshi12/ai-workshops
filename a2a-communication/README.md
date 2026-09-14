@@ -127,23 +127,29 @@ kubectl set image deployment/flight-search-agent flight-search-agent=gcr.io/gde-
 #### 3. Grab the external IP & set `APP_URL`
 The LoadBalancer is **automatically provisioned as external** because [service.tf](file:///Users/adityajoshi/development/ai-workshops/a2a-communication/flight-search-agent/deployment/terraform/single-project/service.tf#L145) has `annotations = {}` (no manual `kubectl patch` needed).
 
-Wait until `EXTERNAL-IP` is populated:
+Wait until `EXTERNAL-IP` is populated, then extract it into a variable:
 
 ```bash
+# Watch until EXTERNAL-IP is assigned (if newly created)
 kubectl get svc flight-search-agent -n flight-search-agent -w
+
+# Extract the external IP into a variable
+GKE_IP=$(kubectl get svc flight-search-agent -n flight-search-agent \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+echo "Flight Agent GKE IP: ${GKE_IP}"
 ```
-Let `<GKE_IP>` be this external IP (e.g. `34.24.162.230`).
 
 Set `APP_URL` on the deployment so the agent advertises its public address in its AgentCard rather than `0.0.0.0:8000`:
 
 ```bash
-kubectl set env deployment/flight-search-agent APP_URL="http://<GKE_IP>:8080" -n flight-search-agent
+kubectl set env deployment/flight-search-agent APP_URL="http://${GKE_IP}:8080" -n flight-search-agent
 kubectl rollout status deployment/flight-search-agent -n flight-search-agent
 ```
 
 Verify the card is healthy:
 ```bash
-curl -s http://<GKE_IP>:8080/a2a/app/.well-known/agent-card.json | jq .
+curl -s http://${GKE_IP}:8080/a2a/app/.well-known/agent-card.json | jq .
 ```
 
 ---
