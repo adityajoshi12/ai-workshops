@@ -60,8 +60,8 @@ non-deprecated one.
 ## Deployment
 
 See the root `README.md`'s "hotel-search-agent -> Compute Engine VM" section
-for the full `gcloud builds submit` + `gcloud compute instances
-create-with-container` sequence. The container listens on `8080` and needs at
+for the full `gcloud builds submit` + `gcloud compute instances create`
+(Container-Optimized OS) sequence. The container listens on `8080` and needs at
 minimum `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, and `APP_URL` (set to
 the VM's external IP) as env vars.
 

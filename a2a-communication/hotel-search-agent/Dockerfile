@@ -7,9 +7,7 @@ FROM node:22-slim
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-ENV NODE_OPTIONS=--max-old-space-size=512
 RUN npm ci --omit=dev
-ENV NODE_OPTIONS=
 
 COPY src ./src
 

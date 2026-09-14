@@ -15,6 +15,7 @@
 
 import os
 
+import google.adk.agents.remote_a2a_agent as ra
 from google.adk.agents import Agent
 from google.adk.agents.remote_a2a_agent import (
     AGENT_CARD_WELL_KNOWN_PATH,
@@ -23,6 +24,9 @@ from google.adk.agents.remote_a2a_agent import (
 from google.adk.apps import App
 from google.adk.models import Gemini
 from google.genai import types
+
+# Allow plain HTTP endpoints for demo / direct IP targets
+ra._is_loopback_host = lambda host: True
 
 
 MODEL = "gemini-3.7-flash"

@@ -7,21 +7,21 @@ each other's AgentCard URL.
 
 ```mermaid
 flowchart TD
-    User["👤 User"]
+    User["👤 User / CLI"]
     Orch["travel-orchestrator\n(ADK / Python)\n☁️ Cloud Run"]
     Flight["flight-search-agent\n(ADK / Python)\n⎈ GKE Autopilot"]
     Hotel["hotel-search-agent\n(LangGraph.js / Node)\n🖥️ Compute Engine VM"]
 
-    User -- prompt --> Orch
+    User -- "A2A (JSON-RPC over HTTP)" --> Orch
     Orch -- "A2A (JSON-RPC over HTTP)" --> Flight
     Orch -- "A2A (JSON-RPC over HTTP)" --> Hotel
 ```
 
-| Agent | Framework | Platform | Deploy tool |
-|---|---|---|---|
-| **travel-orchestrator** | ADK (Python) | Cloud Run | `agents-cli deploy` |
-| **flight-search-agent** | ADK (Python) | GKE Autopilot | `agents-cli deploy` (Terraform) |
-| **hotel-search-agent** | LangGraph.js (Node) | Compute Engine VM | `gcloud` (manual) |
+| Agent | Framework | Platform | Deploy tool | Exposed Port |
+|---|---|---|---|---|
+| **travel-orchestrator** | ADK (Python) | Cloud Run | `agents-cli deploy` | `8080` (HTTPS) |
+| **flight-search-agent** | ADK (Python) | GKE Autopilot | `agents-cli deploy` / `kubectl` | `8080` (HTTP) |
+| **hotel-search-agent** | LangGraph.js (Node) | Compute Engine VM (COS) | `gcloud` / deploy script | `8080` (HTTP) |
 
 ## Repo layout
 
@@ -30,22 +30,27 @@ a2a-communication/
 ├── travel-orchestrator/        # Cloud Run  — root agent, delegates via A2A
 ├── flight-search-agent/        # GKE        — mock flight search
 ├── hotel-search-agent/         # Compute Engine VM — mock hotel search (Node)
-├── scripts/                    # Local run / test / stop helpers
+├── scripts/
+│   ├── deploy-hotel-vm.sh      # Automated COS VM provisioner
+│   ├── run-local.sh            # Local run helper (ports 8000, 8001, 8002)
+│   ├── test-local.sh           # Local test runner
+│   └── stop-local.sh           # Local teardown helper
 └── .agents-cli-spec.md         # The agreed demo spec
 ```
 
 ## Prerequisites
 
 - **agents-cli** v1.5+ — `uv tool install google-agents-cli`
-- **Node.js** 22+ — for hotel-search-agent
-- **gcloud**, **kubectl**, **docker** on PATH
-- **Authenticated:**
+- **Node.js** 22+ — for `hotel-search-agent`
+- **uv** — Python package manager: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- **gcloud**, **kubectl**, **docker** on `PATH`
+- **Authentication:**
   ```bash
   agents-cli login -i
   gcloud auth login
   gcloud auth application-default login
   ```
-- A **GCP project** with billing enabled (this repo uses `gde-workspace`)
+- A **GCP project** with billing enabled (e.g. `gde-workspace`) and APIs enabled (`run.googleapis.com`, `container.googleapis.com`, `compute.googleapis.com`, `aiplatform.googleapis.com`).
 
 ---
 
@@ -71,7 +76,7 @@ Run all three locally and test end-to-end:
 `HOTEL_AGENT_URL=http://localhost:8002` for the orchestrator — those are the
 only two env vars that change between local and deployed.
 
-Poke a single agent's AgentCard:
+Inspect a single agent's AgentCard locally:
 
 ```bash
 curl http://localhost:8001/a2a/app/.well-known/agent-card.json | jq .
@@ -79,14 +84,15 @@ curl http://localhost:8001/a2a/app/.well-known/agent-card.json | jq .
 
 ---
 
-## Deploying
+## Deploying to Google Cloud
 
-> **⚠️ Never run these against a real project without confirming with whoever
-> owns billing.** All three agents should be in the same region to avoid
-> cross-region latency. This repo uses `asia-south1`.
+> **⚠️ Note on Region & Billing:** All three agents should be in the same region to avoid
+> cross-region latency. This demo uses `asia-south1`.
 
 Deploy in this order: **flight → hotel → orchestrator** (the orchestrator
 needs both remote URLs before it can be configured).
+
+---
 
 ### Step 1 — flight-search-agent → GKE Autopilot
 
@@ -94,29 +100,32 @@ needs both remote URLs before it can be configured).
 cd flight-search-agent
 ```
 
-**Provision infrastructure** (one-time, ~10–15 min). This is optional — 
-`agents-cli deploy` works out of the box with smart defaults. Run `infra` only
-if you need a dedicated service account or custom IAM bindings:
+#### 1. Provision infrastructure (one-time)
+Terraform provisions the VPC, GKE Autopilot cluster, and initial Kubernetes namespace/deployment:
 
 ```bash
 # Preview the Terraform plan
 agents-cli infra single-project --project gde-workspace
 
-# Apply when satisfied
+# Apply infrastructure
 agents-cli infra single-project --project gde-workspace --apply
 ```
+*(Requires `gcloud auth application-default login` for Terraform).*
 
-**Deploy the agent:**
+#### 2. Deploy the real flight search container
+The initial Terraform apply deploys a placeholder image (`us-docker.pkg.dev/cloudrun/container/hello`). Deploy the real agent:
 
 ```bash
-agents-cli deploy --no-confirm-project
+# Option A: via agents-cli
+agents-cli deploy --no-confirm-project --project gde-workspace
+
+# Option B: direct Cloud Build & kubectl (faster, bypasses Terraform)
+gcloud builds submit --project=gde-workspace --tag gcr.io/gde-workspace/flight-search-agent .
+kubectl set image deployment/flight-search-agent flight-search-agent=gcr.io/gde-workspace/flight-search-agent -n flight-search-agent
 ```
 
-Region and deploy target (`gke`) are read from `agents-cli-manifest.yaml` —
-no `--region` flag needed.
-
-**Make the LoadBalancer external.** The scaffolded GKE service defaults to
-internal-only. For this demo, patch it to be externally reachable:
+#### 3. Make the LoadBalancer external
+The scaffolded GKE service defaults to internal-only. Patch it to be externally reachable:
 
 ```bash
 kubectl patch svc flight-search-agent -n flight-search-agent \
@@ -124,94 +133,151 @@ kubectl patch svc flight-search-agent -n flight-search-agent \
   -p='[{"op":"remove","path":"/metadata/annotations/cloud.google.com~1load-balancer-type"}]'
 ```
 
-> The `~1` is JSON Patch's escape for `/` in the annotation key.
-
-**Grab the external IP** (wait until `EXTERNAL-IP` is no longer `<pending>`):
+#### 4. Grab the external IP & set `APP_URL`
+Wait until `EXTERNAL-IP` is populated:
 
 ```bash
 kubectl get svc flight-search-agent -n flight-search-agent -w
 ```
+Let `<GKE_IP>` be this external IP (e.g. `34.24.162.230`).
 
-Note this IP — it becomes the `FLIGHT_AGENT_URL` for the orchestrator.
+Set `APP_URL` on the deployment so the agent advertises its public address in its AgentCard rather than `0.0.0.0:8000`:
+
+```bash
+kubectl set env deployment/flight-search-agent APP_URL="http://<GKE_IP>:8080" -n flight-search-agent
+kubectl rollout status deployment/flight-search-agent -n flight-search-agent
+```
+
+Verify the card is healthy:
+```bash
+curl -s http://<GKE_IP>:8080/a2a/app/.well-known/agent-card.json | jq .
+```
+
+---
 
 ### Step 2 — hotel-search-agent → Compute Engine VM
 
-This one deliberately skips all `agents-cli` tooling — it's a plain Node
-container on a bare VM, proving A2A doesn't need a managed platform or even
-the same language as the other agents.
+This agent is built with **Node.js + LangGraph.js** and deployed to a **Compute Engine VM** running Container-Optimized OS (COS), demonstrating language and framework interoperability.
+
+#### Option A: One-command automated deployment
+From the `a2a-communication` root directory, run:
 
 ```bash
-cd hotel-search-agent
+./scripts/deploy-hotel-vm.sh
 ```
+This script builds the container via Cloud Build, ensures firewall rules, launches the COS VM with self-configuring IP metadata, and prints `HOTEL_AGENT_URL`.
 
-**Build and push the container image:**
+#### Option B: Manual deployment
 
+1. **Build and push the container image:**
+   ```bash
+   cd hotel-search-agent
+   gcloud builds submit --project=gde-workspace \
+     --tag gcr.io/gde-workspace/hotel-search-agent \
+     --machine-type=e2-highcpu-8 .
+   ```
+
+2. **Create the VM instance (Container-Optimized OS):**
+   *(Note: The legacy `create-with-container` is deprecated in GCP. Use `cos-stable` with startup script instead).*
+   ```bash
+   gcloud compute instances create hotel-search-agent-vm \
+     --project=gde-workspace \
+     --zone=asia-south1-a \
+     --machine-type=e2-small \
+     --image-family=cos-stable \
+     --image-project=cos-cloud \
+     --scopes=cloud-platform \
+     --tags=http-server \
+     --metadata=startup-script='#!/bin/bash
+   export HOME=/var/lib/docker
+   mkdir -p /var/lib/docker
+   docker-credential-gcr configure-docker --registries=gcr.io
+   VM_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip")
+   docker pull gcr.io/gde-workspace/hotel-search-agent
+   docker run -d --restart=always \
+     --name=hotel-search-agent \
+     -p 8080:8080 \
+     -e GOOGLE_CLOUD_PROJECT=gde-workspace \
+     -e GOOGLE_CLOUD_LOCATION=global \
+     -e APP_URL=http://${VM_IP}:8080 \
+     gcr.io/gde-workspace/hotel-search-agent'
+   ```
+   > **Important:** Setting `export HOME=/var/lib/docker` is required because the `/root` filesystem on COS is mounted read-only.
+
+3. **Open firewall port 8080:**
+   ```bash
+   gcloud compute firewall-rules create allow-hotel-agent-8080 \
+     --project=gde-workspace \
+     --allow=tcp:8080 \
+     --target-tags=http-server \
+     --source-ranges=0.0.0.0/0
+   ```
+
+4. **Fetch the VM's external IP:**
+   ```bash
+   VM_IP=$(gcloud compute instances describe hotel-search-agent-vm \
+     --project=gde-workspace \
+     --zone=asia-south1-a \
+     --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+
+   echo "Hotel Agent IP: ${VM_IP}"
+   ```
+
+Verify the card is healthy:
 ```bash
-gcloud builds submit --tag gcr.io/gde-workspace/hotel-search-agent \
-  --machine-type=e2-highcpu-8 .
+curl -s http://${VM_IP}:8080/a2a/app/.well-known/agent-card.json | jq .
 ```
 
-> If Cloud Build still fails, build and push locally instead:
-> ```bash
-> docker build -t gcr.io/gde-workspace/hotel-search-agent .
-> docker push gcr.io/gde-workspace/hotel-search-agent
-> ```
-> (Run `gcloud auth configure-docker` first if you haven't.)
-
-**Create the VM:**
-
-```bash
-gcloud compute instances create-with-container hotel-search-agent-vm \
-  --project=gde-workspace \
-  --zone=asia-south1-a \
-  --machine-type=e2-small \
-  --container-image=gcr.io/gde-workspace/hotel-search-agent \
-  --container-env=GOOGLE_CLOUD_PROJECT=gde-workspace,GOOGLE_CLOUD_LOCATION=global \
-  --tags=http-server
-```
-
-**Open port 8080:**
-
-```bash
-gcloud compute firewall-rules create allow-hotel-agent-8080 \
-  --allow=tcp:8080 --target-tags=http-server --source-ranges=0.0.0.0/0
-```
-
-**Set APP_URL** (the AgentCard bakes this URL into `supportedInterfaces` so
-follow-up A2A calls reach the right address):
-
-```bash
-VM_IP=$(gcloud compute instances describe hotel-search-agent-vm \
-  --zone=asia-south1-a \
-  --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-
-gcloud compute instances update-container hotel-search-agent-vm \
-  --zone=asia-south1-a \
-  --container-env=GOOGLE_CLOUD_PROJECT=gde-workspace,GOOGLE_CLOUD_LOCATION=global,APP_URL=http://${VM_IP}:8080
-```
-
-Note `http://<VM_IP>:8080` — this becomes `HOTEL_AGENT_URL` for the orchestrator.
+---
 
 ### Step 3 — travel-orchestrator → Cloud Run
 
-Deploy last, once you have both remote URLs:
+Deploy last, once you have both `<GKE_IP>` and `<VM_IP>`:
 
 ```bash
 cd travel-orchestrator
 
-agents-cli deploy --no-confirm-project \
-  --update-env-vars "FLIGHT_AGENT_URL=http://<GKE_IP>:8080,HOTEL_AGENT_URL=http://<VM_IP>:8080"
+agents-cli deploy --no-confirm-project --project gde-workspace \
+  --update-env-vars "FLIGHT_AGENT_URL=http://<GKE_IP>:8080,HOTEL_AGENT_URL=http://<VM_IP>:8080,GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=gde-workspace,GOOGLE_CLOUD_LOCATION=global"
 ```
 
-Replace `<GKE_IP>` and `<VM_IP>` with the actual IPs from Steps 1 and 2.
+#### Enable public unauthenticated access
+Cloud Run services default to `--no-allow-unauthenticated`. Grant `roles/run.invoker` to `allUsers` for demo access:
+
+```bash
+gcloud run services add-iam-policy-binding travel-orchestrator \
+  --project=gde-workspace \
+  --region=asia-south1 \
+  --member="allUsers" \
+  --role="roles/run.invoker"
+```
+
+Verify the orchestrator card is healthy:
+```bash
+curl -s https://<orchestrator-cloud-run-url>/a2a/app/.well-known/agent-card.json | jq .
+```
+You should see `flight_search_agent` and `hotel_search_agent` listed under `skills`.
 
 ---
 
 ## Running the deployed demo
 
+From `travel-orchestrator/`:
+
 ```bash
-agents-cli run --url <orchestrator-cloud-run-url> --mode a2a \
+cd travel-orchestrator
+
+# 1. Combined trip prompt (delegates to both Flight and Hotel agents)
+agents-cli run --url https://<orchestrator-cloud-run-url> --mode a2a \
   "Plan a trip to Austin, Oct 3-5, flying out of SFO"
+
+# 2. Flight-only search prompt
+agents-cli run --url https://<orchestrator-cloud-run-url> --mode a2a \
+  "Find round-trip flights between SFO and Austin for Oct 3-5"
+
+# 3. Hotel-only search prompt
+agents-cli run --url https://<orchestrator-cloud-run-url> --mode a2a \
+  "Find hotels in Austin for Oct 3-5"
 ```
 
 The orchestrator on **Cloud Run** calls a Kubernetes pod on **GKE** and a bare
@@ -221,27 +287,41 @@ care. That's A2A.
 
 ---
 
+## Key Gotchas & Troubleshooting
+
+| Issue | Cause | Fix |
+|---|---|---|
+| **`Agent card URL must use https, or http on a loopback host`** | ADK's `RemoteA2aAgent` security check blocks plain HTTP for non-localhost URLs | In `travel-orchestrator/app/agent.py`, patch `google.adk.agents.remote_a2a_agent._is_loopback_host = lambda host: True` for direct IP demo targets. |
+| **`HTTP 403 Forbidden` on Cloud Run URL** | Cloud Run defaults to private authentication | Run `gcloud run services add-iam-policy-binding travel-orchestrator --member="allUsers" --role="roles/run.invoker"`. |
+| **`ValueError: No API key was provided`** | `google-genai` SDK defaults to Google AI Studio if Vertex AI is not enabled | Set environment variable `GOOGLE_GENAI_USE_VERTEXAI=true`. |
+| **`PERMISSION_DENIED: CONSUMER_INVALID`** | `GOOGLE_CLOUD_PROJECT` has trailing/leading whitespace or newlines | Ensure clean project ID string (e.g. `gde-workspace`) without line breaks in Cloud Run env vars. |
+| **GKE AgentCard advertises `0.0.0.0:8000`** | `APP_URL` env var not passed to the pod | Run `kubectl set env deployment/flight-search-agent APP_URL="http://<GKE_IP>:8080" -n flight-search-agent`. |
+| **COS: `mkdir /root/.docker: read-only file system`** | Container-Optimized OS mounts `/root` as read-only | Prepend `export HOME=/var/lib/docker` before running `docker-credential-gcr`. |
+| **Node `npm ci: Exit handler never called!`** | `package-lock.json` contains corporate Artifactory URLs | Replace internal URLs with `https://registry.npmjs.org/`. |
+| **Docker build fails on `uv sync --frozen`** | `uv.lock` file missing from project context | Run `uv lock` locally to generate `uv.lock` and change Dockerfile to `RUN uv sync`. |
+
+---
+
 ## Tearing down
 
-### flight-search-agent (GKE — Terraform)
+To clean up all GCP resources and avoid ongoing charges:
 
+### 1. flight-search-agent (GKE)
 ```bash
 cd flight-search-agent/deployment/terraform/single-project
 terraform destroy -var-file=vars/env.tfvars
 ```
 
-### hotel-search-agent (Compute Engine — manual)
-
+### 2. hotel-search-agent (Compute Engine VM & Images)
 ```bash
-gcloud compute instances delete hotel-search-agent-vm --zone=asia-south1-a
-gcloud compute firewall-rules delete allow-hotel-agent-8080
-gcloud container images delete gcr.io/gde-workspace/hotel-search-agent --force-delete-tags
+gcloud compute instances delete hotel-search-agent-vm --zone=asia-south1-a --project=gde-workspace --quiet
+gcloud compute firewall-rules delete allow-hotel-agent-8080 --project=gde-workspace --quiet
+gcloud container images delete gcr.io/gde-workspace/hotel-search-agent --force-delete-tags --quiet
 ```
 
-### travel-orchestrator (Cloud Run)
-
+### 3. travel-orchestrator (Cloud Run)
 ```bash
-gcloud run services delete travel-orchestrator --region=asia-south1
+gcloud run services delete travel-orchestrator --region=asia-south1 --project=gde-workspace --quiet
 ```
 
 ---
