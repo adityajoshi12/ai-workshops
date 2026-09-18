@@ -47,12 +47,25 @@ my_agent/
 Open it in the **Cloud Shell Editor** (pencil icon, top-right) — it's just
 VS Code in your browser.
 
-Drop your backend choice from Step 0 into `my_agent/.env`, e.g.:
+Drop your backend choice from Step 0 into `my_agent/.env` — pick ONE:
 
+**Option A — Gemini Developer API:**
 ```dotenv
 GOOGLE_API_KEY=YOUR_GEMINI_API_KEY
 GOOGLE_GENAI_USE_VERTEXAI=FALSE
 ```
+
+**Option B — Vertex AI:**
+```dotenv
+GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID
+GOOGLE_CLOUD_LOCATION=us-central1
+GOOGLE_GENAI_USE_VERTEXAI=TRUE
+```
+(Requires `gcloud auth application-default login` to have been run already —
+see [main setup, Step 0.3](../README.md#03-choose-a-gemini-backend--pick-one).)
+
+Nothing else in this workshop changes based on which one you pick — every
+tool and every line of `agent.py` you write from here is backend-agnostic.
 
 ---
 
@@ -211,15 +224,31 @@ dict. Add it to `tools=[...]` and update the instruction to mention it.
 
 ## Step 8 — Deploy to Cloud Run
 
+Use the command matching the backend you picked in Step 1.
+
+**Option A — Gemini Developer API:**
 ```bash
 adk deploy cloud_run my_agent -- \
   --region=us-central1 \
   --set-env-vars=GOOGLE_API_KEY=YOUR_GEMINI_API_KEY,GOOGLE_GENAI_USE_VERTEXAI=FALSE
 ```
 
-(If you went the Vertex route in Step 0, swap the env vars for
-`GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_GENAI_USE_VERTEXAI=TRUE`
-instead.)
+**Option B — Vertex AI:**
+```bash
+# One-time per project: let the Cloud Run service account call Vertex AI.
+PROJECT_NUMBER=$(gcloud projects describe $(gcloud config get-value project) --format='value(projectNumber)')
+gcloud projects add-iam-policy-binding $(gcloud config get-value project) \
+  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role="roles/aiplatform.user"
+
+adk deploy cloud_run my_agent -- \
+  --region=us-central1 \
+  --set-env-vars=GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-central1,GOOGLE_GENAI_USE_VERTEXAI=TRUE
+```
+
+Note there's no API key anywhere in Option B — the deployed service
+authenticates as itself. That's the main practical upside of Vertex AI
+over the API-key route once you're past the workshop stage.
 
 This builds a container (via Cloud Build), pushes it to Artifact Registry,
 and deploys it to Cloud Run. Note the printed service URL, e.g.:

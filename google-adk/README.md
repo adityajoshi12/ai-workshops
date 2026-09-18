@@ -95,6 +95,36 @@ export GOOGLE_GENAI_USE_VERTEXAI=TRUE
 > Whichever option you pick, you'll drop the *same* variables into a
 > `.env` file inside each agent folder later — ADK auto-loads it.
 
+### Which one should you actually pick?
+
+| | Option A: API key | Option B: Vertex AI |
+|---|---|---|
+| Setup effort | Lowest — one key, no IAM | A bit more — needs ADC login + IAM role |
+| Good for | Workshops, quick demos, personal projects | Teams already using GCP quota/billing/IAM |
+| Auth locally | `GOOGLE_API_KEY` env var | `gcloud auth application-default login` |
+| Auth on Cloud Run | Same `GOOGLE_API_KEY` env var baked in | The Cloud Run service's own service account (no key to leak!) |
+| Rate limits / billing | Tied to the free-tier key | Tied to your GCP project's Vertex AI quota |
+
+Both workshops work identically either way — **the agent's Python code never
+changes**, only these environment variables do. That's the point of ADK's
+abstraction: swap the backend, keep the agent. Every "run it locally" and
+"deploy it" step in both workshops shows the exact command for both options
+side by side, so pick whichever matches your setup and follow that column.
+
+> **Cloud Run + Vertex AI gotcha:** `gcloud auth application-default login`
+> only authenticates *your Cloud Shell session* — it does nothing for a
+> deployed container. When you deploy with Option B, the running service
+> authenticates as its own **runtime service account**, so that account
+> needs the Vertex AI role granted to it once, per project:
+> ```bash
+> PROJECT_NUMBER=$(gcloud projects describe $(gcloud config get-value project) --format='value(projectNumber)')
+> gcloud projects add-iam-policy-binding $(gcloud config get-value project) \
+>   --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+>   --role="roles/aiplatform.user"
+> ```
+> Each workshop's deploy step reminds you of this — do it once and every
+> Vertex-backed deploy afterwards just works.
+
 ### 0.4 Python environment + install the ADK
 
 ```bash

@@ -199,15 +199,31 @@ far as its parent is concerned.
 ## Deploy a multi-agent app to Cloud Run
 
 We'll deploy `research_assistant` since it already ships with `.env`-style
-docs. Same command shape as Workshop 1, just a different folder:
+docs. Same command shape as Workshop 1, just a different folder — use
+whichever backend column matches your setup.
 
+**Option A — Gemini Developer API:**
 ```bash
 adk deploy cloud_run research_assistant -- \
   --region=us-central1 \
   --set-env-vars=GOOGLE_API_KEY=YOUR_GEMINI_API_KEY,GOOGLE_GENAI_USE_VERTEXAI=FALSE
 ```
 
-(Swap env vars for the Vertex trio if that's your backend.)
+**Option B — Vertex AI:**
+```bash
+# One-time per project (skip if you already did this in Workshop 1):
+PROJECT_NUMBER=$(gcloud projects describe $(gcloud config get-value project) --format='value(projectNumber)')
+gcloud projects add-iam-policy-binding $(gcloud config get-value project) \
+  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role="roles/aiplatform.user"
+
+adk deploy cloud_run research_assistant -- \
+  --region=us-central1 \
+  --set-env-vars=GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-central1,GOOGLE_GENAI_USE_VERTEXAI=TRUE
+```
+
+> Same deal for `router_agent_demo` and `parallel_agent_demo` if you want to
+> deploy one of those instead — just swap the folder name, the flags don't change.
 
 Note the service URL, then create a session and invoke it exactly like
 Workshop 1:
