@@ -32,6 +32,34 @@ You should have `adk --version` working and your Gemini backend exported.
 ADK gives you a small set of **workflow agents** you compose like building
 blocks. Each one just controls *how* its `sub_agents` run:
 
+```mermaid
+flowchart TB
+    subgraph Router["Router / Coordinator - LLM picks a specialist"]
+        R0([Root Agent]) -. delegates .-> R1[Billing Agent]
+        R0 -. delegates .-> R2[Tech Support Agent]
+        R0 -. delegates .-> R3[General Agent]
+    end
+
+    subgraph Sequential["Sequential - fixed pipeline, order guaranteed"]
+        S1[Step 1] --> S2[Step 2] --> S3[Step 3]
+    end
+
+    subgraph Parallel["Parallel - fan-out, then fan-in"]
+        P0([Fan-out]) --> P1[Agent A]
+        P0 --> P2[Agent B]
+        P0 --> P3[Agent C]
+        P1 --> P4([Fan-in / Merge])
+        P2 --> P4
+        P3 --> P4
+    end
+
+    subgraph Loop["Loop - repeat until approved or max_iterations"]
+        L1[Critic] --> L2[Reviser]
+        L2 -- not approved --> L1
+        L2 -- exit_loop called --> L3([Done])
+    end
+```
+
 - **`SequentialAgent`** - runs sub-agents one after another, in order. Use when step B *needs* step A's output.
 - **`ParallelAgent`** - runs sub-agents at the same time. Use when steps are independent and you want speed.
 - **`LoopAgent`** - repeats its sub-agents until something calls `escalate` (or it hits `max_iterations`). Use for iterative refinement.
