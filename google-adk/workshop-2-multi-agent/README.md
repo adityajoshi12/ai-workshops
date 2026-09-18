@@ -1,4 +1,4 @@
-# Workshop 2: Multi-Agent Systems — Router, Sequential, Parallel & Loop
+# Workshop 2: Multi-Agent Systems - Router, Sequential, Parallel & Loop
 
 **Level:** Intermediate | **Duration:** ~90-120 min | **Env:** Google Cloud Shell
 
@@ -21,7 +21,7 @@ the [one-time environment setup](../README.md#0-one-time-environment-setup-do-th
 You should have `adk --version` working and your Gemini backend exported.
 
 > If you're using the Gemini Developer API (`GOOGLE_API_KEY`), the built-in
-> `google_search` tool used below works out of the box — no extra setup.
+> `google_search` tool used below works out of the box - no extra setup.
 > If you're on Vertex AI, make sure `gcloud auth application-default login`
 > has been run (Step 0.3 Option B in the main README).
 
@@ -32,21 +32,21 @@ You should have `adk --version` working and your Gemini backend exported.
 ADK gives you a small set of **workflow agents** you compose like building
 blocks. Each one just controls *how* its `sub_agents` run:
 
-- **`SequentialAgent`** — runs sub-agents one after another, in order. Use when step B *needs* step A's output.
-- **`ParallelAgent`** — runs sub-agents at the same time. Use when steps are independent and you want speed.
-- **`LoopAgent`** — repeats its sub-agents until something calls `escalate` (or it hits `max_iterations`). Use for iterative refinement.
-- **Router / Coordinator** — this isn't a special class, it's a plain `Agent` with `sub_agents=[...]` and no tools of its own. ADK auto-wires a `transfer_to_agent` tool, and the LLM decides at runtime which specialist gets the message. Use when the *right handler* depends on user intent.
+- **`SequentialAgent`** - runs sub-agents one after another, in order. Use when step B *needs* step A's output.
+- **`ParallelAgent`** - runs sub-agents at the same time. Use when steps are independent and you want speed.
+- **`LoopAgent`** - repeats its sub-agents until something calls `escalate` (or it hits `max_iterations`). Use for iterative refinement.
+- **Router / Coordinator** - this isn't a special class, it's a plain `Agent` with `sub_agents=[...]` and no tools of its own. ADK auto-wires a `transfer_to_agent` tool, and the LLM decides at runtime which specialist gets the message. Use when the *right handler* depends on user intent.
 
-All four can nest inside each other — a `SequentialAgent` step can itself be
+All four can nest inside each other - a `SequentialAgent` step can itself be
 a `ParallelAgent`, which is exactly what `parallel_agent_demo` does.
 
 ---
 
-## Part A — Router / Coordinator pattern
+## Part A - Router / Coordinator pattern
 
 Open [`../router_agent_demo/agent.py`](../router_agent_demo/agent.py). Three
 specialists (`billing_agent`, `tech_support_agent`, `general_agent`), and a
-root agent that has **no tools** — only `sub_agents` and an instruction
+root agent that has **no tools** - only `sub_agents` and an instruction
 telling it to always delegate.
 
 ```python
@@ -78,16 +78,16 @@ Pick `router_agent_demo` and try, in order:
 3. "Hey, how's it going?" → should transfer to `general_agent`
 
 Open the trace panel: the very first event from the root agent is a
-`transfer_to_agent` function call — it never generates a text answer itself.
+`transfer_to_agent` function call - it never generates a text answer itself.
 
 **Exercise:** each specialist's `description` field is what the router
 reads to decide where to send things. Try weakening `tech_support_agent`'s
-description to something vague and watch routing accuracy degrade — good
+description to something vague and watch routing accuracy degrade - good
 lesson that description quality *is* routing quality.
 
 ---
 
-## Part B — Sequential pipeline pattern
+## Part B - Sequential pipeline pattern
 
 Open [`../research_assistant/agent.py`](../research_assistant/agent.py) and
 look at the bottom:
@@ -101,7 +101,7 @@ root_agent = SequentialAgent(
 
 `researcher` writes to `state["research"]`, `writer` reads `{research}` and
 writes `state["draft"]`, and `refine_loop` (Part D, below) reads/rewrites
-`{draft}`. Order is guaranteed — `writer` never runs before `researcher`
+`{draft}`. Order is guaranteed - `writer` never runs before `researcher`
 has finished.
 
 **Run it:**
@@ -116,7 +116,7 @@ trace panel.
 
 ---
 
-## Part C — Parallel fan-out/fan-in pattern
+## Part C - Parallel fan-out/fan-in pattern
 
 Open [`../parallel_agent_demo/agent.py`](../parallel_agent_demo/agent.py):
 
@@ -145,7 +145,7 @@ adk web
 
 Pick `parallel_agent_demo` and ask: *"Give me a briefing on Tokyo"*. In the
 trace panel, compare the timestamps on `weather_agent`, `clock_agent`, and
-`trivia_agent` — they overlap, unlike the strictly sequential steps in
+`trivia_agent` - they overlap, unlike the strictly sequential steps in
 Part B. That overlap *is* the performance win `ParallelAgent` buys you.
 
 **Exercise:** add a fourth parallel branch (e.g. a `news_agent` using
@@ -154,7 +154,7 @@ instruction template.
 
 ---
 
-## Part D — Loop pattern (deep dive)
+## Part D - Loop pattern (deep dive)
 
 Back in `research_assistant/agent.py`, look at the `refine_loop`:
 
@@ -177,10 +177,10 @@ refine_loop = LoopAgent(
 Every pass: `critic` reads `{draft}` and either calls `exit_loop` (draft is
 good) or writes actionable feedback to `{critique}`; `reviser` applies that
 feedback and overwrites `{draft}`. The loop keeps going until `exit_loop`
-fires **or** `max_iterations` is hit — that cap is your safety net against
+fires **or** `max_iterations` is hit - that cap is your safety net against
 an agent that never agrees its own work is good enough.
 
-**Run it:** same `research_assistant` session from Part B — watch the trace
+**Run it:** same `research_assistant` session from Part B - watch the trace
 panel count `critic` → `reviser` passes and stop the moment `exit_loop` is
 called (often before hitting the 3-pass cap).
 
@@ -191,7 +191,7 @@ called (often before hitting the 3-pass cap).
 Combine two patterns: make `router_agent_demo`'s `tech_support_agent` a
 `SequentialAgent` of its own (e.g. a "diagnose" step then a "suggest fix"
 step), or give it its own small `LoopAgent` for iterative troubleshooting.
-Nesting is the whole point — a workflow agent is just another `Agent` as
+Nesting is the whole point - a workflow agent is just another `Agent` as
 far as its parent is concerned.
 
 ---
@@ -199,17 +199,17 @@ far as its parent is concerned.
 ## Deploy a multi-agent app to Cloud Run
 
 We'll deploy `research_assistant` since it already ships with `.env`-style
-docs. Same command shape as Workshop 1, just a different folder — use
+docs. Same command shape as Workshop 1, just a different folder - use
 whichever backend column matches your setup.
 
-**Option A — Gemini Developer API:**
+**Option A - Gemini Developer API:**
 ```bash
 adk deploy cloud_run research_assistant -- \
   --region=us-central1 \
   --set-env-vars=GOOGLE_API_KEY=YOUR_GEMINI_API_KEY,GOOGLE_GENAI_USE_VERTEXAI=FALSE
 ```
 
-**Option B — Vertex AI:**
+**Option B - Vertex AI:**
 ```bash
 # One-time per project (skip if you already did this in Workshop 1):
 PROJECT_NUMBER=$(gcloud projects describe $(gcloud config get-value project) --format='value(projectNumber)')
@@ -223,7 +223,7 @@ adk deploy cloud_run research_assistant -- \
 ```
 
 > Same deal for `router_agent_demo` and `parallel_agent_demo` if you want to
-> deploy one of those instead — just swap the folder name, the flags don't change.
+> deploy one of those instead - just swap the folder name, the flags don't change.
 
 Note the service URL, then create a session and invoke it exactly like
 Workshop 1:
@@ -266,7 +266,7 @@ gcloud run services delete adk-default-service-name --region=us-central1
 - **Sequential**: `SequentialAgent` → guaranteed order, data flows via `state`/`output_key`.
 - **Parallel**: `ParallelAgent` → concurrent independent work, fanned back in by a following step.
 - **Loop**: `LoopAgent` + an `exit_loop` tool that sets `tool_context.actions.escalate = True`, capped by `max_iterations`.
-- All four nest inside each other — mix and match to fit the shape of the real problem.
+- All four nest inside each other - mix and match to fit the shape of the real problem.
 - Deployment story is identical across all patterns: `adk deploy cloud_run <folder>`.
 
 **Resources:** [Google ADK docs](https://google.github.io/adk-docs/) · [`google.adk.agents` API reference](https://google.github.io/adk-docs/agents/)
