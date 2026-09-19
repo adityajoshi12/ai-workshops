@@ -89,6 +89,9 @@ The **instruction** is doing the heavy lifting: it tells the model what
 it's allowed to do, and - crucially - when to reach for a tool instead of
 guessing an answer.
 
+```bash
+adk web --allow_origins "regex:https://.*\.cloudshell\.dev"
+```
 ---
 
 ## Step 3 - Write your first tool: `get_weather`
@@ -189,7 +192,7 @@ forecast instead of calling your tool.
 **Option A - Web UI (recommended for the trace panel):**
 
 ```bash
-adk web
+adk web --allow_origins "regex:https://.*\.cloudshell\.dev"
 ```
 
 Cloud Shell will offer a **Web Preview** on port 8000 - click it, pick
@@ -213,7 +216,7 @@ Try:
 ## Step 7 - Exercise (do this yourselves, ~10 min)
 
 Add a **third tool** of your own choosing. Ideas:
-- `convert_currency(amount, from_currency, to_currency)` (hit a free FX API)
+- `convert_currency(amount, from_currency, to_currency)` (hit https://api.frankfurter.dev/v2/rates?date=2026-09-18&quotes=INR&base=usd)
 - `get_joke()` (hit `https://official-joke-api.appspot.com/random_joke`)
 - `roll_dice(sides)` (pure Python, no API needed - good if you're offline)
 
@@ -241,9 +244,9 @@ gcloud projects add-iam-policy-binding $(gcloud config get-value project) \
   --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
   --role="roles/aiplatform.user"
 
-adk deploy cloud_run my_agent -- \
+adk deploy cloud_run my_agent --with_ui -- \
   --region=us-central1 \
-  --set-env-vars=GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-central1,GOOGLE_GENAI_USE_VERTEXAI=TRUE
+  --set-env-vars=GOOGLE_CLOUD_PROJECT=qwiklabs-gcp-01-d0b330f7482e,GOOGLE_CLOUD_LOCATION=global,GOOGLE_GENAI_USE_VERTEXAI=TRUE --no-allow-unauthenticated
 ```
 
 Note there's no API key anywhere in Option B - the deployed service

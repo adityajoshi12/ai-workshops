@@ -88,7 +88,7 @@ What each one is for:
 ```bash
 gcloud auth application-default login
 export GOOGLE_CLOUD_PROJECT="YOUR_PROJECT_ID"
-export GOOGLE_CLOUD_LOCATION="us-central1"
+export GOOGLE_CLOUD_LOCATION="global"
 export GOOGLE_GENAI_USE_VERTEXAI=TRUE
 ```
 
