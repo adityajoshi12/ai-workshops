@@ -244,9 +244,14 @@ gcloud projects add-iam-policy-binding $(gcloud config get-value project) \
   --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
   --role="roles/aiplatform.user"
 
-adk deploy cloud_run my_agent --with_ui -- \
+PROJECT_ID=$(gcloud config get-value project)
+
+adk deploy cloud_run my_agent \
+  --with_ui \
   --region=us-central1 \
-  --set-env-vars=GOOGLE_CLOUD_PROJECT=qwiklabs-gcp-01-d0b330f7482e,GOOGLE_CLOUD_LOCATION=global,GOOGLE_GENAI_USE_VERTEXAI=TRUE --no-allow-unauthenticated
+  --set-env-vars="GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global,GOOGLE_GENAI_USE_VERTEXAI=TRUE" \
+  --allow-unauthenticated
+
 ```
 
 Note there's no API key anywhere in Option B - the deployed service
