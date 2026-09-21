@@ -1,8 +1,7 @@
 # server.py
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
-# 1. MOVE THE PORT (AND HOST) HERE TO THE CONSTRUCTOR
-mcp = FastMCP("CustomerOps", host="0.0.0.0", port=9000, streamable_http_path="/mcp")
+mcp = MCPServer("CustomerOps")
 
 @mcp.tool()
 def get_customer_summary(customer_id: str) -> str:
@@ -15,4 +14,4 @@ def delete_customer_account(customer_id: str) -> str:
     return f"SUCCESS: Customer {customer_id} has been fully purged from the DB."
 
 if __name__ == "__main__":
-    mcp.run(transport='sse')
+    mcp.run(transport="sse", host="0.0.0.0", port=9000)

@@ -12,16 +12,28 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-DOCKER="$(which docker || which podman)"
-PYTHON="$(which python || which python3)"
-AGENTGW="$(which agentgateway)"
+DOCKER="$(command -v docker || command -v podman)"
+if [[ -x .venv/bin/python ]]; then
+  PYTHON="$(pwd)/.venv/bin/python"
+else
+  PYTHON="$(command -v python3 || command -v python)"
+fi
+AGENTGW="$(command -v agentgateway)"
 KEEP_KC=false
 [[ "${1:-}" == "--keep" ]] && KEEP_KC=true
 
 GREEN='\033[0;32m'; CYAN='\033[0;36m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
 banner() { echo -e "\n${CYAN}▶ $*${NC}"; }
 info()   { echo -e "${GREEN}  ✓${NC} $*"; }
-
+wait_for_port() {
+  local host=$1
+  local port=$2
+  for _ in $(seq 1 30); do
+    nc -z "$host" "$port" >/dev/null 2>&1 && return 0
+    sleep 1
+  done
+  return 1
+}
 # ─── Kill any leftover processes ──────────────────────────────────────────────
 pkill -f "server\.py"  2>/dev/null || true
 pkill -f "agentgateway" 2>/dev/null || true
@@ -60,6 +72,7 @@ $PYTHON server.py > mcp_server.log 2>&1 &
 MCP_PID=$!
 sleep 2
 kill -0 "$MCP_PID" 2>/dev/null || { echo "ERROR: MCP server failed"; cat mcp_server.log; exit 1; }
+wait_for_port 127.0.0.1 9000 || { echo "ERROR: MCP server is not ready"; cat mcp_server.log; exit 1; }
 info "MCP server on port 9000  (PID $MCP_PID)"
 
 # ─── Step 4: AgentGateway ─────────────────────────────────────────────────────
@@ -68,6 +81,7 @@ $AGENTGW -f config.yaml > agentgateway.log 2>&1 &
 GW_PID=$!
 sleep 3
 kill -0 "$GW_PID" 2>/dev/null || { echo "ERROR: AgentGateway failed"; cat agentgateway.log; exit 1; }
+wait_for_port ::1 15021 || { echo "ERROR: AgentGateway is not ready"; cat agentgateway.log; exit 1; }
 info "AgentGateway on port 3000  (PID $GW_PID)"
 
 # ─── Print ready banner ───────────────────────────────────────────────────────

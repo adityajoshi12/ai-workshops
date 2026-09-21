@@ -14,7 +14,8 @@ import argparse
 import os
 import httpx
 from mcp import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.streamable_http import streamable_http_client
+from mcp.shared._httpx_utils import create_mcp_http_client
 
 KEYCLOAK_TOKEN_URL = "http://localhost:8080/realms/ai-mesh/protocol/openid-connect/token"
 GATEWAY_MCP_URL    = "http://localhost:3000/mcp"
@@ -49,10 +50,23 @@ async def get_token(client_id: str, client_secret: str) -> str:
 # ── MCP session helper ────────────────────────────────────────────────────────
 async def call_tool(headers: dict, tool: str, args: dict):
     """Each call gets its own session — prevents ExceptionGroup leakage on denied calls."""
-    async with streamablehttp_client(GATEWAY_MCP_URL, headers=headers) as (rs, ws, _):
-        async with ClientSession(rs, ws) as session:
-            await session.initialize()
-            return await session.call_tool(tool, arguments=args)
+    async with create_mcp_http_client(headers=headers) as http_client:
+        async with streamable_http_client(GATEWAY_MCP_URL, http_client=http_client) as (rs, ws):
+            async with ClientSession(rs, ws) as session:
+                await session.initialize()
+                return await session.call_tool(tool, arguments=args)
+
+async def list_tools(headers: dict):
+    async with create_mcp_http_client(headers=headers) as http_client:
+        async with streamable_http_client(GATEWAY_MCP_URL, http_client=http_client) as (rs, ws):
+            async with ClientSession(rs, ws) as session:
+                await session.initialize()
+                return await session.list_tools()
+
+def exception_text(error: BaseException) -> str:
+    if isinstance(error, BaseExceptionGroup):
+        return " ".join(exception_text(child) for child in error.exceptions)
+    return str(error)
 
 # ── Demo ──────────────────────────────────────────────────────────────────────
 async def main():
@@ -73,22 +87,36 @@ async def main():
     print("\n🔌 Connecting to AgentGateway → MCP Server")
     print("=" * 52 + "\n")
 
+    try:
+        tools = await list_tools(headers)
+        visible_tools = [tool.name for tool in tools.tools]
+        print(f"🔎 Visible tools: {', '.join(visible_tools)}\n")
+    except Exception as e:
+        print(f"🔴 ERROR: Unable to discover tools — {exception_text(e)}")
+        raise SystemExit(1)
+
     # ── TEST 1: Safe read operation ───────────────────────────────────────────
     print("🛠️  AGENT ACTION: get_customer_summary('cust_8819')")
     try:
         result = await call_tool(headers, "get_customer_summary", {"customer_id": "cust_8819"})
         print(f"🟢 SUCCESS: {result.content[0].text}\n")
     except Exception as e:
-        print(f"🔴 ERROR: {e}\n")
+        print(f"🔴 ERROR: {exception_text(e)}\n")
+        raise SystemExit(1)
 
     # ── TEST 2: Destructive operation — the mic-drop moment ───────────────────
     print("💣 AGENT ACTION: delete_customer_account('cust_8819')")
     try:
         result = await call_tool(headers, "delete_customer_account", {"customer_id": "cust_8819"})
         print(f"🟢 ALLOWED: {result.content[0].text}\n")
-    except Exception:
-        print("🛡️  BLOCKED BY GATEWAY: delete_customer_account")
-        print("   (Reason: token lacks 'mcp_admin' role — gateway hides the tool entirely)\n")
+    except Exception as e:
+        error = exception_text(e).lower()
+        if "unknown tool" in error or "tool not found" in error:
+            print("🛡️  BLOCKED BY GATEWAY: delete_customer_account")
+            print("   (Reason: token lacks 'mcp_admin' role — gateway hides the tool entirely)\n")
+        else:
+            print(f"🔴 ERROR: Delete request failed — {exception_text(e)}")
+            raise SystemExit(1)
 
 if __name__ == "__main__":
     import logging

@@ -10,6 +10,11 @@ KEYCLOAK_HEALTH_URL="http://localhost:8081/health/ready"
 ADMIN_USER="admin"
 ADMIN_PASS="admin"
 REALM="ai-mesh"
+if [[ -x .venv/bin/python ]]; then
+  PYTHON="$(pwd)/.venv/bin/python"
+else
+  PYTHON="$(command -v python3 || command -v python)"
+fi
 
 # Color helpers
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
@@ -36,7 +41,7 @@ info "Obtaining admin token..."
 ADMIN_TOKEN=$(curl -sf -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "client_id=admin-cli&username=$ADMIN_USER&password=$ADMIN_PASS&grant_type=password" \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+  | "$PYTHON" -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
 AUTH="Authorization: Bearer $ADMIN_TOKEN"
 
@@ -84,7 +89,7 @@ create_client() {
   # Get internal UUID
   local uuid
   uuid=$(curl -sf -H "$AUTH" "$KEYCLOAK_URL/admin/realms/$REALM/clients?clientId=$client_id" \
-    | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0]['id'])")
+    | "$PYTHON" -c "import sys,json; d=json.load(sys.stdin); print(d[0]['id'])")
 
   # Add Audience mapper so 'account' appears in JWT aud claim
   info "  Adding audience mapper to '$client_id'..."
@@ -105,12 +110,12 @@ create_client() {
   local svc_user_id
   svc_user_id=$(curl -sf -H "$AUTH" \
     "$KEYCLOAK_URL/admin/realms/$REALM/clients/$uuid/service-account-user" \
-    | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+    | "$PYTHON" -c "import sys,json; print(json.load(sys.stdin)['id'])")
 
   local role_id
   role_id=$(curl -sf -H "$AUTH" \
     "$KEYCLOAK_URL/admin/realms/$REALM/roles/$role" \
-    | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+    | "$PYTHON" -c "import sys,json; print(json.load(sys.stdin)['id'])")
 
   info "  Assigning role '$role' to '$client_id'..."
   curl -sf -X POST "$KEYCLOAK_URL/admin/realms/$REALM/users/$svc_user_id/role-mappings/realm" \
@@ -121,7 +126,7 @@ create_client() {
   local secret
   secret=$(curl -sf -H "$AUTH" \
     "$KEYCLOAK_URL/admin/realms/$REALM/clients/$uuid/client-secret" \
-    | python3 -c "import sys,json; print(json.load(sys.stdin)['value'])")
+    | "$PYTHON" -c "import sys,json; print(json.load(sys.stdin)['value'])")
   echo "$secret"
 }
 
@@ -129,39 +134,17 @@ create_client() {
 READER_SECRET=$(create_client "agent-core-client" "mcp_reader")
 ADMIN_SECRET=$(create_client "adminuser" "mcp_admin")
 
-# ─── 7. Patch secrets into demo files ────────────────────────────────────────
-DIR="$(dirname "$0")"
-
-patch_secret() {
-  local file=$1 secret=$2
-  if [[ -f "$file" ]]; then
-    # Use python3 for reliable in-place replacement (handles special chars in secret)
-    python3 - "$file" "$secret" <<'PYEOF'
-import sys, re, pathlib
-f, secret = pathlib.Path(sys.argv[1]), sys.argv[2]
-content = f.read_text()
-content = re.sub(r'CLIENT_SECRET\s*=\s*"[^"]*"', f'CLIENT_SECRET = "{secret}"', content)
-f.write_text(content)
-PYEOF
-  fi
-}
-
-info "Patching secrets into demo scripts..."
-patch_secret "$DIR/agent_demo.py"       "$READER_SECRET"
-patch_secret "$DIR/agent_demo_admin.py" "$ADMIN_SECRET"
-info "  agent_demo.py       → agent-core-client (mcp_reader)"
-info "  agent_demo_admin.py → adminuser (mcp_admin)"
-
-# ─── 8. Write secrets file (for start.sh / e2e.sh to source) ─────────────────
+# ─── 7. Write secrets file (for start.sh / e2e.sh to source) ─────────────────
 cat > .demo-secrets <<SECRETS
 READER_CLIENT_ID=agent-core-client
 READER_SECRET=$READER_SECRET
 ADMIN_CLIENT_ID=adminuser
 ADMIN_SECRET=$ADMIN_SECRET
 SECRETS
+chmod 600 .demo-secrets
 info "Secrets written to .demo-secrets"
 
-# ─── 9. Print summary ────────────────────────────────────────────────────────
+# ─── 8. Print summary ────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}════════════════════════════════════════════════════${NC}" >&2
 echo -e "${GREEN}  Keycloak Setup Complete!${NC}" >&2

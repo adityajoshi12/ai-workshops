@@ -3,7 +3,6 @@ mcp:
   policies:
     cors:
       allowOrigins:
-      - '*'
       - http://localhost:15000
       allowHeaders:
       - '*'

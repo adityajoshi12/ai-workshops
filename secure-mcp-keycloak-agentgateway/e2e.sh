@@ -12,9 +12,13 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-DOCKER="$(which docker || which podman)"
-PYTHON="$(which python || which python3)"
-AGENTGW="$(which agentgateway)"
+DOCKER="$(command -v docker || command -v podman)"
+if [[ -x .venv/bin/python ]]; then
+  PYTHON="$(pwd)/.venv/bin/python"
+else
+  PYTHON="$(command -v python3 || command -v python)"
+fi
+AGENTGW="$(command -v agentgateway)"
 KEEP_KC=false
 [[ "${1:-}" == "--keep" ]] && KEEP_KC=true
 
@@ -23,7 +27,29 @@ banner() { echo -e "\n${CYAN}▶ $*${NC}"; }
 info()   { echo -e "${GREEN}  ✓${NC} $*"; }
 fail()   { echo -e "${RED}  ✗ FAIL${NC}: $*"; FAILURES=$((FAILURES+1)); }
 pass()   { echo -e "${GREEN}  ✓ PASS${NC}: $*"; PASSES=$((PASSES+1)); }
-
+wait_for_port() {
+  local host=$1
+  local port=$2
+  for _ in $(seq 1 30); do
+    nc -z "$host" "$port" >/dev/null 2>&1 && return 0
+    sleep 1
+  done
+  return 1
+}
+run_agent() {
+  local output=""
+  local exit_code=1
+  for _ in $(seq 1 10); do
+    set +e
+    output=$("$PYTHON" agent_demo.py "$@" 2>&1)
+    exit_code=$?
+    set -e
+    [[ "$exit_code" -eq 0 ]] && { printf '%s' "$output"; return 0; }
+    sleep 1
+  done
+  printf '%s' "$output"
+  return "$exit_code"
+}
 PASSES=0; FAILURES=0
 GW_PID=""; MCP_PID=""
 
@@ -62,20 +88,21 @@ info "Keycloak: realm + clients configured"
 
 # MCP server
 pkill -f "server.py" 2>/dev/null || true
+pkill -f agentgateway 2>/dev/null || true
 sleep 1
 $PYTHON server.py > mcp_server.log 2>&1 &
 MCP_PID=$!
 sleep 2
 kill -0 "$MCP_PID" 2>/dev/null || { echo "ERROR: MCP server failed to start"; exit 1; }
+wait_for_port 127.0.0.1 9000 || { echo "ERROR: MCP server is not ready"; cat mcp_server.log; exit 1; }
 info "MCP server: port 9000"
 
 # AgentGateway
-pkill -f agentgateway 2>/dev/null || true
-sleep 1
 $AGENTGW -f config.yaml > agentgateway.log 2>&1 &
 GW_PID=$!
 sleep 3
 kill -0 "$GW_PID" 2>/dev/null || { echo "ERROR: AgentGateway failed to start"; cat agentgateway.log; exit 1; }
+wait_for_port ::1 15021 || { echo "ERROR: AgentGateway is not ready"; cat agentgateway.log; exit 1; }
 info "AgentGateway: port 3000"
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -84,12 +111,17 @@ info "AgentGateway: port 3000"
 banner "Phase 2 — Scenario A: mcp_reader agent"
 echo "  client_id=$READER_CLIENT_ID"
 
-READER_OUT=$($PYTHON agent_demo.py \
+set +e
+READER_OUT=$(run_agent \
   --client-id "$READER_CLIENT_ID" \
-  --client-secret "$READER_SECRET" 2>/dev/null)
+  --client-secret "$READER_SECRET")
+READER_EXIT=$?
+set -e
 
 echo "$READER_OUT"
 echo ""
+
+[[ "$READER_EXIT" -eq 0 ]] || fail "reader agent failed to complete"
 
 # Assertions
 if echo "$READER_OUT" | grep -q "mcp_reader"; then
@@ -116,12 +148,17 @@ fi
 banner "Phase 3 — Scenario B: mcp_admin agent"
 echo "  client_id=$ADMIN_CLIENT_ID"
 
-ADMIN_OUT=$($PYTHON agent_demo.py \
+set +e
+ADMIN_OUT=$(run_agent \
   --client-id "$ADMIN_CLIENT_ID" \
-  --client-secret "$ADMIN_SECRET" 2>/dev/null)
+  --client-secret "$ADMIN_SECRET")
+ADMIN_EXIT=$?
+set -e
 
 echo "$ADMIN_OUT"
 echo ""
+
+[[ "$ADMIN_EXIT" -eq 0 ]] || fail "admin agent failed to complete"
 
 if echo "$ADMIN_OUT" | grep -q "mcp_admin"; then
   pass "Token contains mcp_admin role"
