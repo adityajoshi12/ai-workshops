@@ -298,3 +298,5 @@ gcloud run services delete adk-default-service-name --region=us-central1
 - Deployment story is identical across all patterns: `adk deploy cloud_run <folder>`.
 
 **Resources:** [Google ADK docs](https://google.github.io/adk-docs/) · [`google.adk.agents` API reference](https://google.github.io/adk-docs/agents/)
+
+**Next up:** [Workshop 3 - MCP Servers](../workshop-3-mcp-cloud-run/README.md), where a tool moves out of the agent entirely and into its own service.
