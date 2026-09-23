@@ -1,9 +1,9 @@
 # Google ADK Hands-On Workshops
 
-Two back-to-back, hands-on labs for learning the **Google Agent Development
-Kit (ADK)** - from a single tool-calling agent to full multi-agent systems,
-deployed to Cloud Run. Built for **beginner-to-intermediate** developers who
-know basic Python but have never touched an agent framework.
+Three back-to-back, hands-on labs for learning the **Google Agent Development
+Kit (ADK)** - from a single tool-calling agent to full multi-agent systems
+to MCP-connected agents, deployed to Cloud Run. Built for **beginner-to-advanced**
+developers who know basic Python but have never touched an agent framework.
 
 Everything runs in **Google Cloud Shell** (browser terminal + Cloud Shell
 Editor) - no local install required.
@@ -12,20 +12,24 @@ Editor) - no local install required.
 |---|---|---|---|
 | 1 | Single agent + custom tools (weather/time bot) | ~60-90 min | [`workshop-1-agent-tools/`](./workshop-1-agent-tools/README.md) |
 | 2 | Multi-agent: Router, Sequential, Parallel, Loop | ~90-120 min | [`workshop-2-multi-agent/`](./workshop-2-multi-agent/README.md) |
+| 3 | MCP servers: build a Cloud Run fleet assistant | ~120-130 min | [`workshop-3-mcp-cloud-run/`](./workshop-3-mcp-cloud-run/README.md) |
 
-Both workshops end the same way: `adk deploy cloud_run`, then poke the live
-agent with `curl`.
+All three workshops end the same way: deploy to Cloud Run, then poke the
+live agent with `curl`.
 
 ## Repo map
 
 ```text
 google-adk/
-  my_agent/              # Workshop 1 solution - single agent, 2 custom tools
-  router_agent_demo/     # Workshop 2 - Router / Coordinator pattern
-  research_assistant/    # Workshop 2 - Sequential + Loop pattern
-  parallel_agent_demo/   # Workshop 2 - Parallel fan-out/fan-in pattern
+  my_agent/               # Workshop 1 solution - single agent, 2 custom tools
+  router_agent_demo/      # Workshop 2 - Router / Coordinator pattern
+  research_assistant/     # Workshop 2 - Sequential + Loop pattern
+  parallel_agent_demo/    # Workshop 2 - Parallel fan-out/fan-in pattern
+  cloud_run_mcp_server/   # Workshop 3 - standalone MCP server (not an agent)
+  ops_agent/              # Workshop 3 - ADK agent connected via McpToolset
   workshop-1-agent-tools/README.md
   workshop-2-multi-agent/README.md
+  workshop-3-mcp-cloud-run/README.md
 ```
 
 Every agent folder is a **standalone, independently runnable ADK app**
