@@ -131,6 +131,8 @@ The [`autofix_agent/agent.py`](autofix_agent/agent.py) module defines an autonom
    # export GOOGLE_GENAI_USE_VERTEXAI=FALSE
 
    adk web
+   or
+   adk web --allow_origins="regex:https://.*\.cloudshell\.dev" # running in google cloudshell
    ```
 
 2. Open **`http://127.0.0.1:8000`**, select **`autofix_agent`** in the top-left dropdown, and run these four prompts in order:
