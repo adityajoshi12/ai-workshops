@@ -1,0 +1,11 @@
+# 2 pre-warmed sandboxes. Module 2 compares a claim against this pool
+# (sub-second) to a cold claim with no pool backing it (10-30s).
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxWarmPool
+metadata:
+  name: workshop-warmpool
+  namespace: agent-sandbox-workshop
+spec:
+  replicas: 2
+  sandboxTemplateRef:
+    name: workshop-template
