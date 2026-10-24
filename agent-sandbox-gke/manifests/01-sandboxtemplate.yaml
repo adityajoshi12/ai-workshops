@@ -1,0 +1,52 @@
+# A hardened, gVisor-isolated SandboxTemplate for the coding agent workshop:
+# 1. runtimeClassName: gvisor gives each sandbox its own user-space kernel.
+# 2. networkPolicyManagement: Managed makes the controller automatically generate
+#    a zero-trust NetworkPolicy (ingress only from sandbox-router; egress only to
+#    public internet, blocking RFC1918 cluster IPs and 169.254.169.254 metadata).
+# 3. Non-root securityContext + dropped capabilities keep processes unprivileged.
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxTemplate
+metadata:
+  name: workshop-template
+  namespace: agent-sandbox-workshop
+spec:
+  networkPolicyManagement: Managed
+  podTemplate:
+    spec:
+      runtimeClassName: gvisor
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: python-runtime
+          # Pre-published runtime image — no docker build/push needed.
+          image: us-central1-docker.pkg.dev/k8s-staging-images/agent-sandbox/python-runtime-sandbox:latest-main
+          ports:
+            - containerPort: 8888
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            httpGet:
+              path: "/"
+              port: 8888
+            periodSeconds: 1
+          livenessProbe:
+            httpGet:
+              path: "/"
+              port: 8888
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      restartPolicy: "OnFailure"
+
