@@ -11,6 +11,7 @@ Hands-on workshops for building AI agents with Google Gemini.
 | [`ai-agent-langchain/`](./ai-agent-langchain/) | TypeScript · LangChain · LangGraph | ReAct agent with tools and conversation memory |
 | [`smart-email-agent/`](./smart-email-agent/) | Go · Google ADK · MCP | Gmail-backed inbox agent with sub-agent delegation |
 | [`agent-sandbox-gke/`](./agent-sandbox-gke/) | Python · Google ADK · GKE Agent Sandbox | Autonomous coding agent running inside gVisor-isolated Kubernetes sandboxes |
+| [`ecommerce-returns-adk/`](./ecommerce-returns-adk/) | Python · Google ADK · Gemini Vision · SQLite | Multi-agent e-commerce returns, exchanges & visual damage triage with policy guardrails |
 
 ---
 

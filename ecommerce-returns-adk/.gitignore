@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+!.env.example
+returnflow_agent/data/store.db

@@ -1,0 +1,8 @@
+sku,product_name,category,variant,price_usd,stock_qty,warehouse_location
+SKU-SHOE-09,TrailBlaze Waterproof Running Shoes,Footwear,Size 9,120.00,4,WH-WEST-01
+SKU-SHOE-10,TrailBlaze Waterproof Running Shoes,Footwear,Size 10,120.00,6,WH-WEST-01
+SKU-SHOE-11,TrailBlaze Waterproof Running Shoes,Footwear,Size 11,120.00,2,WH-EAST-02
+SKU-WATCH-01,ChronoFit Smart Watch,Electronics,Obsidian Black,135.00,0,WH-WEST-01
+SKU-ESPR-01,AeroPro Barista Espresso Machine,Appliances,Brushed Steel,450.00,3,WH-CENTRAL-01
+SKU-BOOT-10,Alpine Leather Hiking Boots,Footwear,Size 10,180.00,5,WH-WEST-01
+SKU-EAR-01,SonicPulse ANC Earbuds,Electronics,Matte White,240.00,0,WH-EAST-02
