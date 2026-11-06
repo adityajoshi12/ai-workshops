@@ -1,0 +1,23 @@
+[
+  {
+    "memory_id": "MEM-101",
+    "creator_id": "creator-default",
+    "category": "visual_style",
+    "preference": "Prefer cinematic 35mm anamorphic framing with warm amber and teal contrast lighting; avoid sterile flat white office backgrounds.",
+    "source": "seed_memory_bank"
+  },
+  {
+    "memory_id": "MEM-102",
+    "creator_id": "creator-default",
+    "category": "audio_and_pacing",
+    "preference": "Use lo-fi analog synthwave background score with calm, conversational narration under 55 words total.",
+    "source": "seed_memory_bank"
+  },
+  {
+    "memory_id": "MEM-103",
+    "creator_id": "creator-default",
+    "category": "aspect_ratio",
+    "preference": "Default to 16:9 widescreen cinematic format unless the user explicitly asks for 9:16 vertical.",
+    "source": "seed_memory_bank"
+  }
+]
