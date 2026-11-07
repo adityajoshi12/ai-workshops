@@ -21,7 +21,10 @@ export const COMMERCE_FUNCTION_DECLARATIONS = [
       properties: {
         query: {
           type: 'STRING',
-          description: 'Short keywords, ALL of which must match, e.g. "gaming", "travel", "5g camera". Omit when filtering by category only.',
+          description:
+            'Short keywords, ALL of which must match. ALWAYS include the product type the user asked for ' +
+            '(e.g. "headphones", "phone", "watch", "speaker") together with any qualifier: "travel headphones", "gaming laptop", "5g phone". ' +
+            'Never send a qualifier alone (e.g. just "travel"), it matches unrelated products.',
         },
         category: {
           type: 'STRING',
