@@ -242,33 +242,153 @@ body {
   color: var(--text-sub);
 }
 
-.visualizer {
+/* Real-Time Audio Frequency Spectrum & Signal Strength HUD */
+.audio-frequency-hud {
+  background: #F8F9FA;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 10px 14px;
+  min-width: 250px;
+  max-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.hud-header {
   display: flex;
   align-items: center;
-  gap: 4px;
-  height: 32px;
+  justify-content: space-between;
 }
 
-.v-bar {
-  width: 4px;
-  height: 8px;
-  background: #DADCE0;
-  border-radius: 4px;
-  transition: height 0.1s ease;
+.hud-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.visualizer.active .v-bar {
+.hud-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9AA0A6;
+  transition: all 0.2s ease;
+}
+
+.hud-status-dot.live-mic {
+  background: var(--g-red);
+  box-shadow: 0 0 8px rgba(234, 67, 53, 0.6);
+  animation: pulse-dot 1s infinite;
+}
+
+.hud-status-dot.live-ai {
   background: var(--g-blue);
-  animation: sound-wave 0.8s infinite ease-in-out alternate;
+  box-shadow: 0 0 8px rgba(26, 115, 232, 0.6);
+  animation: pulse-dot 1s infinite;
 }
 
-.visualizer.active .v-bar:nth-child(2n) { animation-delay: 0.15s; }
-.visualizer.active .v-bar:nth-child(3n) { animation-delay: 0.3s; }
-.visualizer.active .v-bar:nth-child(4n) { animation-delay: 0.45s; }
+.hud-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--text-sub);
+}
 
-@keyframes sound-wave {
-  0% { height: 6px; }
-  100% { height: 28px; }
+.hud-source-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: #E8EAED;
+  color: #5F6368;
+  letter-spacing: 0.3px;
+}
+
+.hud-source-badge.live-mic {
+  background: #FCE8E6;
+  color: #C5221F;
+}
+
+.hud-source-badge.live-ai {
+  background: var(--accent-blue-soft);
+  color: var(--g-blue);
+}
+
+.hud-metric {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.hud-canvas-wrap {
+  width: 100%;
+  height: 48px;
+  background: #202124;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+#frequency-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Signal Strength VU Meter */
+.hud-meter-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.hud-meter-track {
+  width: 100%;
+  height: 6px;
+  background: #E8EAED;
+  border-radius: 4px;
+  position: relative;
+  overflow: visible;
+}
+
+.hud-meter-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #34A853 0%, #34A853 60%, #FBBC05 85%, #EA4335 100%);
+  transition: width 0.08s ease-out;
+}
+
+.hud-meter-peak {
+  position: absolute;
+  top: -2px;
+  left: 0%;
+  width: 2px;
+  height: 10px;
+  background: #202124;
+  border-radius: 1px;
+  transition: left 0.08s ease-out;
+}
+
+.hud-meter-scale {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: #80868B;
+  padding: 0 1px;
+}
+
+/* Legacy visualizer fallback for backwards compatibility */
+.visualizer {
+  display: none;
 }
 
 /* Text Query Bar */
@@ -876,4 +996,20 @@ body {
 
 .code-step code {
   font-family: 'JetBrains Mono', monospace;
+}
+
+/* Responsive Media Queries */
+@media (max-width: 900px) {
+  .main-layout {
+    grid-template-columns: 1fr;
+    padding: 16px;
+  }
+  .voice-card {
+    flex-wrap: wrap;
+  }
+  .audio-frequency-hud {
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+  }
 }

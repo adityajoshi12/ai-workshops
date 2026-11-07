@@ -11,6 +11,13 @@
   let isRecording = false;
   let isSimulated = false;
 
+  // Real-Time Audio Frequency & Signal Strength Analyser
+  let analyserNode = null;
+  let frequencyData = null;
+  let timeDomainData = null;
+  let currentSourceType = 'idle'; // 'mic' | 'ai' | 'ai_synthetic' | 'idle'
+  let peakLevel = 0;
+
   // Audio Playback Queue (24kHz PCM from Gemini)
   let audioQueue = [];
   let isPlaying = false;
@@ -20,7 +27,7 @@
   const connectionPill = document.getElementById('connection-pill');
   const statusText = document.getElementById('status-text');
   const micBtn = document.getElementById('mic-toggle-btn');
-  const visualizer = document.getElementById('visualizer-bars');
+  const visualizer = document.getElementById('audio-frequency-hud') || document.getElementById('visualizer-bars');
   const voiceHeading = document.getElementById('voice-heading');
   const voiceSubheading = document.getElementById('voice-subheading');
   const textQueryForm = document.getElementById('text-query-form');
@@ -252,7 +259,7 @@
   }
 
   // --------------------------------------------------------------------------
-  // Web Audio PCM Playback (24kHz from Gemini Live)
+  // Web Audio PCM Playback & Real-Time Frequency Analyser
   // --------------------------------------------------------------------------
   function ensureAudioContext() {
     if (!audioCtx) {
@@ -261,6 +268,166 @@
     if (audioCtx.state === 'suspended') {
       audioCtx.resume();
     }
+    getAnalyser();
+  }
+
+  function getAnalyser() {
+    if (!audioCtx) return null;
+    if (!analyserNode) {
+      analyserNode = audioCtx.createAnalyser();
+      analyserNode.fftSize = 64; // 32 frequency bins
+      analyserNode.smoothingTimeConstant = 0.8;
+      frequencyData = new Uint8Array(analyserNode.frequencyBinCount);
+      timeDomainData = new Uint8Array(analyserNode.fftSize);
+    }
+    return analyserNode;
+  }
+
+  // --------------------------------------------------------------------------
+  // Real-Time Audio Frequency Spectrum & Signal Strength HUD Renderer
+  // --------------------------------------------------------------------------
+  function renderAudioHud() {
+    const canvas = document.getElementById('frequency-canvas');
+    if (!canvas) {
+      requestAnimationFrame(renderAudioHud);
+      return;
+    }
+
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    let rms = 0;
+    if (analyserNode && (currentSourceType === 'mic' || currentSourceType === 'ai')) {
+      analyserNode.getByteFrequencyData(frequencyData);
+      analyserNode.getByteTimeDomainData(timeDomainData);
+
+      let sum = 0;
+      for (let i = 0; i < timeDomainData.length; i++) {
+        const v = (timeDomainData[i] - 128) / 128;
+        sum += v * v;
+      }
+      rms = Math.sqrt(sum / timeDomainData.length);
+    } else if (currentSourceType === 'ai_synthetic') {
+      const t = Date.now() / 120;
+      rms = 0.22 + 0.12 * Math.sin(t * 2.5);
+      if (frequencyData) {
+        for (let i = 0; i < frequencyData.length; i++) {
+          const wave = Math.sin(t + i * 0.5) * Math.cos(t * 0.7 + i * 0.2);
+          frequencyData[i] = Math.max(15, Math.floor(190 * Math.abs(wave)));
+        }
+      }
+    } else {
+      // Smooth idle decay to flatline
+      if (frequencyData) {
+        for (let i = 0; i < frequencyData.length; i++) {
+          frequencyData[i] = Math.max(0, frequencyData[i] * 0.82);
+        }
+      }
+      rms = 0;
+    }
+
+    // Convert RMS to decibels (-60 dB to 0 dB) and VU percentage
+    let dbText = '-60 dB';
+    let percent = 0;
+    if (currentSourceType !== 'idle') {
+      const rawDb = rms > 0.001 ? 20 * Math.log10(rms) : -60;
+      const clampedDb = Math.max(-60, Math.min(0, Math.round(rawDb)));
+      dbText = `${clampedDb} dB`;
+      percent = Math.min(100, Math.max(0, Math.round(((clampedDb + 60) / 60) * 100)));
+    }
+
+    // Peak needle hold & decay
+    if (percent > peakLevel) {
+      peakLevel = percent;
+    } else {
+      peakLevel = Math.max(0, peakLevel - 1.4);
+    }
+
+    // Update DOM Indicators
+    const dbEl = document.getElementById('hud-db-value');
+    const barEl = document.getElementById('hud-meter-bar');
+    const peakEl = document.getElementById('hud-meter-peak');
+    const dotEl = document.getElementById('hud-status-dot');
+    const badgeEl = document.getElementById('hud-source-badge');
+
+    if (dbEl) dbEl.textContent = dbText;
+    if (barEl) barEl.style.width = `${percent}%`;
+    if (peakEl) peakEl.style.left = `${Math.min(99, peakLevel)}%`;
+
+    if (dotEl && badgeEl) {
+      if (currentSourceType === 'mic') {
+        dotEl.className = 'hud-status-dot live-mic';
+        badgeEl.textContent = 'MIC LIVE';
+        badgeEl.className = 'hud-source-badge live-mic';
+      } else if (currentSourceType === 'ai' || currentSourceType === 'ai_synthetic') {
+        dotEl.className = 'hud-status-dot live-ai';
+        badgeEl.textContent = 'AI AUDIO';
+        badgeEl.className = 'hud-source-badge live-ai';
+      } else {
+        dotEl.className = 'hud-status-dot';
+        badgeEl.textContent = 'IDLE';
+        badgeEl.className = 'hud-source-badge';
+      }
+    }
+
+    // Clear Canvas
+    ctx.fillStyle = '#202124';
+    ctx.fillRect(0, 0, width, height);
+
+    // Subtle decibel reference grid lines
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, Math.floor(height * 0.35));
+    ctx.lineTo(width, Math.floor(height * 0.35));
+    ctx.moveTo(0, Math.floor(height * 0.7));
+    ctx.lineTo(width, Math.floor(height * 0.7));
+    ctx.stroke();
+
+    // Draw 24 Frequency Spectrum Bars
+    const numBars = 24;
+    const barSpacing = 3;
+    const totalSpacing = barSpacing * (numBars - 1);
+    const barWidth = (width - totalSpacing) / numBars;
+
+    const gradient = ctx.createLinearGradient(0, height, 0, 0);
+    if (currentSourceType === 'mic') {
+      gradient.addColorStop(0, '#1A73E8');
+      gradient.addColorStop(0.5, '#34A853');
+      gradient.addColorStop(0.85, '#FBBC05');
+      gradient.addColorStop(1, '#EA4335');
+    } else if (currentSourceType === 'ai' || currentSourceType === 'ai_synthetic') {
+      gradient.addColorStop(0, '#1A73E8');
+      gradient.addColorStop(0.6, '#A142F4');
+      gradient.addColorStop(1, '#FA7B17');
+    } else {
+      gradient.addColorStop(0, '#3C4043');
+      gradient.addColorStop(1, '#5F6368');
+    }
+
+    for (let i = 0; i < numBars; i++) {
+      const binIdx = Math.floor((i / numBars) * (frequencyData ? frequencyData.length : 32));
+      const val = frequencyData ? frequencyData[binIdx] || 0 : 0;
+      const barHeight = Math.max(3, (val / 255) * (height - 4));
+      const x = i * (barWidth + barSpacing);
+      const y = height - barHeight;
+
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      const r = Math.min(barWidth / 2, 2);
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + barWidth - r, y);
+      ctx.quadraticCurveTo(x + barWidth, y, x + barWidth, y + r);
+      ctx.lineTo(x + barWidth, height);
+      ctx.lineTo(x, height);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    requestAnimationFrame(renderAudioHud);
   }
 
   function playPcm24kChunk(base64Data) {
@@ -289,17 +456,27 @@
   function playNextInQueue() {
     if (audioQueue.length === 0) {
       isPlaying = false;
+      if (!isRecording) currentSourceType = 'idle';
       return;
     }
     isPlaying = true;
+    currentSourceType = 'ai';
     const buffer = audioQueue.shift();
     const source = audioCtx.createBufferSource();
     source.buffer = buffer;
     source.connect(audioCtx.destination);
+
+    const analyser = getAnalyser();
+    if (analyser) {
+      source.connect(analyser);
+    }
     currentAudioSource = source;
 
     source.onended = () => {
       currentAudioSource = null;
+      if (audioQueue.length === 0 && !isRecording) {
+        currentSourceType = 'idle';
+      }
       playNextInQueue();
     };
     source.start();
@@ -314,6 +491,7 @@
     }
     audioQueue = [];
     isPlaying = false;
+    if (!isRecording) currentSourceType = 'idle';
   }
 
   // --------------------------------------------------------------------------
@@ -412,6 +590,13 @@
       const source = audioCtx.createMediaStreamSource(micStream);
       scriptProcessor = audioCtx.createScriptProcessor(2048, 1, 1);
 
+      // Connect microphone source to real-time audio analyser for frequency graph & VU meter
+      const analyser = getAnalyser();
+      if (analyser) {
+        source.connect(analyser);
+      }
+      currentSourceType = 'mic';
+
       scriptProcessor.onaudioprocess = (e) => {
         if (!isRecording) return;
         const inputData = e.inputBuffer.getChannelData(0);
@@ -470,6 +655,7 @@
 
   function stopRecording() {
     isRecording = false;
+    currentSourceType = 'idle';
     micBtn.classList.remove('active');
     visualizer.classList.remove('active');
     voiceHeading.textContent = 'Tap Mic to Start Talking';
@@ -498,6 +684,15 @@
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 1.05;
       utterance.pitch = 1.0;
+      utterance.onstart = () => {
+        currentSourceType = 'ai_synthetic';
+      };
+      utterance.onend = () => {
+        if (!isRecording) currentSourceType = 'idle';
+      };
+      utterance.onerror = () => {
+        if (!isRecording) currentSourceType = 'idle';
+      };
       window.speechSynthesis.speak(utterance);
     }
   }
@@ -625,4 +820,5 @@
   connectWebSocket();
   checkInsecureContext();
   loadInitialCatalog();
+  requestAnimationFrame(renderAudioHud);
 })();

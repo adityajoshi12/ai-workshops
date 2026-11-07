@@ -63,12 +63,38 @@
           <p id="voice-subheading">"I need travel headphones under ₹3,000 with long battery."</p>
         </div>
 
-        <!-- Waveform Visualizer -->
-        <div class="visualizer" id="visualizer-bars">
-          <span class="v-bar"></span><span class="v-bar"></span><span class="v-bar"></span>
-          <span class="v-bar"></span><span class="v-bar"></span><span class="v-bar"></span>
-          <span class="v-bar"></span><span class="v-bar"></span><span class="v-bar"></span>
-          <span class="v-bar"></span><span class="v-bar"></span><span class="v-bar"></span>
+        <!-- Real-Time Audio Frequency Spectrum & Signal Strength HUD -->
+        <div class="audio-frequency-hud" id="audio-frequency-hud" title="Live Audio Signal Strength & Frequency Spectrum">
+          <div class="hud-header">
+            <div class="hud-title-wrap">
+              <span class="hud-status-dot" id="hud-status-dot"></span>
+              <span class="hud-title">AUDIO SIGNAL</span>
+              <span class="hud-source-badge" id="hud-source-badge">IDLE</span>
+            </div>
+            <div class="hud-metric">
+              <span class="hud-db-value" id="hud-db-value">-60 dB</span>
+            </div>
+          </div>
+
+          <!-- Real-Time FFT Frequency Spectrum Canvas -->
+          <div class="hud-canvas-wrap">
+            <canvas id="frequency-canvas" width="240" height="48"></canvas>
+          </div>
+
+          <!-- Peak Signal Strength VU Meter Bar -->
+          <div class="hud-meter-wrap">
+            <div class="hud-meter-track">
+              <div class="hud-meter-bar" id="hud-meter-bar"></div>
+              <div class="hud-meter-peak" id="hud-meter-peak"></div>
+            </div>
+            <div class="hud-meter-scale">
+              <span>-60dB</span>
+              <span>-24dB</span>
+              <span>-12dB</span>
+              <span>-3dB</span>
+              <span>0dB</span>
+            </div>
+          </div>
         </div>
       </div>
 
