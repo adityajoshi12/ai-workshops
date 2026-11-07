@@ -11,6 +11,7 @@ Hands-on workshops for building AI agents with Google Gemini.
 | [`ai-agent-langchain/`](./ai-agent-langchain/) | TypeScript · LangChain · LangGraph | ReAct agent with tools and conversation memory |
 | [`smart-email-agent/`](./smart-email-agent/) | Go · Google ADK · MCP | Gmail-backed inbox agent with sub-agent delegation |
 | [`agent-sandbox-gke/`](./agent-sandbox-gke/) | Python · Google ADK · GKE Agent Sandbox | Autonomous coding agent running inside gVisor-isolated Kubernetes sandboxes |
+| [`talk-to-shop-gemini-live/`](./talk-to-shop-gemini-live/) | TypeScript · Fastify · Gemini Live API · Web Audio | Voice-first e-commerce shopping agent with Dual Delivery UI and authoritative backend |
 
 ---
 
@@ -42,6 +43,21 @@ go run . console
 
 ---
 
+## talk-to-shop-gemini-live
+
+Build a real-time, bidirectional voice e-commerce shopping agent powered by Google Gemini Live API (`gemini-2.5-flash-native-audio-preview-12-2025`). Implements Dual Delivery architecture (voice audio + synchronized visual product cards), function calling with 9 commerce tools, client-side Web Audio (16kHz PCM capture, 24kHz PCM playback), and instant barge-in interruption.
+
+- [Setup & walkthrough](./talk-to-shop-gemini-live/README.md)
+
+```bash
+cd talk-to-shop-gemini-live
+npm install
+cp .env.example .env  # Add your GEMINI_API_KEY
+npm run dev
+```
+
+---
+
 ## Author
 
 **Aditya Joshi** — [YouTube](https://www.youtube.com/@adityajoshi12) · [LinkedIn](https://www.linkedin.com/in/adityajoshi12) · [connect@adityajoshi.online](mailto:connect@adityajoshi.online)
@@ -52,3 +68,5 @@ go run . console
 
 - **ai-agent-langchain**: Node.js 18+, a Gemini API key
 - **smart-email-agent**: Go, Node.js (for the Gmail MCP server), a Gemini API key + Gmail account
+- **agent-sandbox-gke**: Python 3.11+, GKE cluster with gVisor sandbox enabled, Gemini API key
+- **talk-to-shop-gemini-live**: Node.js 18+, a Gemini API key (supports Gemini 2.5 Flash Native Audio preview)
