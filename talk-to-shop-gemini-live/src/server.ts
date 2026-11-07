@@ -129,7 +129,7 @@ app.get('/ws/live', { websocket: true }, (connection, req) => {
     clientWs.send(
       JSON.stringify({
         type: 'status',
-        text: 'Simulation Mode: GEMINI_API_KEY not configured. Quick triggers and commerce execution are active.',
+        text: 'Simulation Mode: GEMINI_API_KEY not configured. Voice & quick triggers are active.',
         simulation: true,
       })
     );
@@ -137,7 +137,7 @@ app.get('/ws/live', { websocket: true }, (connection, req) => {
     clientWs.on('message', (raw) => {
       try {
         const msg = JSON.parse(raw.toString());
-        if (msg.type === 'simulate_query') {
+        if (msg.type === 'simulate_query' || msg.type === 'text_query') {
           handleSimulatedQuery(clientWs, msg.text);
         }
       } catch (e) {
@@ -147,8 +147,8 @@ app.get('/ws/live', { websocket: true }, (connection, req) => {
     return;
   }
 
-  // Connect to Google Gemini Live API native WebSocket
-  const geminiWsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${GEMINI_API_KEY}`;
+  // Connect to Google Gemini Live API native WebSocket (v1beta)
+  const geminiWsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${GEMINI_API_KEY}`;
   const geminiWs = new WebSocket(geminiWsUrl);
 
   geminiWs.on('open', () => {
@@ -267,37 +267,41 @@ app.get('/ws/live', { websocket: true }, (connection, req) => {
     try {
       const msg = JSON.parse(raw.toString());
 
+      // If Gemini WebSocket is closed or not open, fall back seamlessly to simulation mode
+      if (geminiWs.readyState !== WebSocket.OPEN) {
+        if (msg.type === 'simulate_query' || msg.type === 'text_query') {
+          handleSimulatedQuery(clientWs, msg.text);
+        }
+        return;
+      }
+
       if (msg.type === 'audio_chunk') {
         // Forward client microphone chunk (16kHz PCM base64) to Gemini
-        if (geminiWs.readyState === WebSocket.OPEN) {
-          const clientChunk = {
-            realtimeInput: {
-              mediaChunks: [
-                {
-                  mimeType: 'audio/pcm;rate=16000',
-                  data: msg.data,
-                },
-              ],
-            },
-          };
-          geminiWs.send(JSON.stringify(clientChunk));
-        }
-      } else if (msg.type === 'text_query') {
+        const clientChunk = {
+          realtimeInput: {
+            mediaChunks: [
+              {
+                mimeType: 'audio/pcm;rate=16000',
+                data: msg.data,
+              },
+            ],
+          },
+        };
+        geminiWs.send(JSON.stringify(clientChunk));
+      } else if (msg.type === 'text_query' || msg.type === 'simulate_query') {
         // Optional text input injection for live demo convenience
-        if (geminiWs.readyState === WebSocket.OPEN) {
-          const textMsg = {
-            clientContent: {
-              turns: [
-                {
-                  role: 'user',
-                  parts: [{ text: msg.text }],
-                },
-              ],
-              turnComplete: true,
-            },
-          };
-          geminiWs.send(JSON.stringify(textMsg));
-        }
+        const textMsg = {
+          clientContent: {
+            turns: [
+              {
+                role: 'user',
+                parts: [{ text: msg.text }],
+              },
+            ],
+            turnComplete: true,
+          },
+        };
+        geminiWs.send(JSON.stringify(textMsg));
       }
     } catch (e) {
       // Binary or invalid JSON
@@ -313,12 +317,12 @@ app.get('/ws/live', { websocket: true }, (connection, req) => {
 
   geminiWs.on('close', () => {
     console.log('[Proxy] Gemini Live API connection closed');
-    clientWs.send(JSON.stringify({ type: 'status', text: 'Gemini session closed', connected: false }));
+    clientWs.send(JSON.stringify({ type: 'status', text: 'Gemini session closed. Running in fallback mode.', simulation: true, connected: false }));
   });
 
   geminiWs.on('error', (err) => {
     console.error('[Proxy] Gemini WebSocket error:', err);
-    clientWs.send(JSON.stringify({ type: 'error', text: err.message }));
+    clientWs.send(JSON.stringify({ type: 'status', text: `Gemini API notice: ${err.message}. Switched to simulation mode.`, simulation: true }));
   });
 });
 
@@ -326,35 +330,11 @@ app.get('/ws/live', { websocket: true }, (connection, req) => {
 // Offline Demonstration / Fallback Simulation Mode
 // ----------------------------------------------------------------------------
 function handleSimulatedQuery(clientWs: any, query: string) {
-  const lower = query.toLowerCase();
+  if (!query || typeof query !== 'string') return;
+  const lower = query.toLowerCase().trim();
 
-  if (lower.includes('search') || lower.includes('travel') || lower.includes('headphones')) {
-    const res = commerce.searchProducts({ query: 'travel', maxPriceInr: 3000 });
-    clientWs.send(
-      JSON.stringify({
-        type: 'dual_delivery',
-        tool: 'search_products',
-        args: { query: 'travel', maxPriceInr: 3000 },
-        result: res,
-        cart: commerce.getCart(),
-        simulatedSpeech:
-          'I found two great options under 3,000 rupees for travel: the TravelBeats X with 50-hour battery life for ₹2,799, and the SoundWave Pro for ₹2,499. Would you like me to add one to your cart?',
-      })
-    );
-  } else if (lower.includes('compare')) {
-    const res = commerce.compareProducts(['prod_tb_x', 'prod_sw_pro']);
-    clientWs.send(
-      JSON.stringify({
-        type: 'dual_delivery',
-        tool: 'compare_products',
-        args: { productIds: ['prod_tb_x', 'prod_sw_pro'] },
-        result: res,
-        cart: commerce.getCart(),
-        simulatedSpeech:
-          'Comparing both: TravelBeats X has 50 hours of battery life and Hybrid ANC for ₹2,799. SoundWave Pro gives you 40 hours with Adaptive ANC for ₹2,499. For frequent travel, TravelBeats X has 10 extra hours.',
-      })
-    );
-  } else if (lower.includes('add') || lower.includes('cart')) {
+  // 1. Add to Cart (Prioritized before search so "add TravelBeats to cart" doesn't trigger search)
+  if (lower.includes('add') || lower.includes('cart') || lower.includes('buy') || lower.includes('purchase')) {
     const res = commerce.addToCart('prod_tb_x', 1);
     clientWs.send(
       JSON.stringify({
@@ -367,7 +347,24 @@ function handleSimulatedQuery(clientWs: any, query: string) {
           'I added the TravelBeats X to your cart. Your subtotal is ₹2,799, plus 18% GST of ₹504, bringing the total to ₹3,303 with free express shipping. Ready to check delivery or place your order?',
       })
     );
-  } else if (lower.includes('delivery') || lower.includes('560103')) {
+  }
+  // 2. Compare Products
+  else if (lower.includes('compare') || lower.includes('difference') || lower.includes('vs') || lower.includes('better')) {
+    const res = commerce.compareProducts(['prod_tb_x', 'prod_sw_pro']);
+    clientWs.send(
+      JSON.stringify({
+        type: 'dual_delivery',
+        tool: 'compare_products',
+        args: { productIds: ['prod_tb_x', 'prod_sw_pro'] },
+        result: res,
+        cart: commerce.getCart(),
+        simulatedSpeech:
+          'Comparing both: TravelBeats X has 50 hours of battery life and Hybrid ANC for ₹2,799. SoundWave Pro gives you 40 hours with Adaptive ANC for ₹2,499. For frequent travel, TravelBeats X has 10 extra hours.',
+      })
+    );
+  }
+  // 3. Check Delivery & Pincode
+  else if (lower.includes('delivery') || lower.includes('pincode') || lower.includes('560103') || lower.includes('shipping') || lower.includes('reach') || lower.includes('when')) {
     const res = commerce.checkDelivery('560103');
     clientWs.send(
       JSON.stringify({
@@ -380,7 +377,9 @@ function handleSimulatedQuery(clientWs: any, query: string) {
           'Delivery to Bellandur Bengaluru 560103 is guaranteed tomorrow by 2:00 PM with free express shipping.',
       })
     );
-  } else if (lower.includes('confirm') || lower.includes('order')) {
+  }
+  // 4. Place Order & Confirm
+  else if (lower.includes('confirm') || lower.includes('place') || lower.includes('order') || lower.includes('checkout') || lower.includes('pay') || lower.includes('yes, please')) {
     const res = commerce.placeOrder({ addressId: 'addr_blr_home', userConfirmed: true });
     clientWs.send(
       JSON.stringify({
@@ -390,6 +389,56 @@ function handleSimulatedQuery(clientWs: any, query: string) {
         result: res,
         cart: commerce.getCart(),
         simulatedSpeech: res.message,
+      })
+    );
+  }
+  // 5. Explicit Search / Filter Requests
+  else if (
+    lower.includes('search') ||
+    lower.includes('travel') ||
+    lower.includes('headphone') ||
+    lower.includes('earphone') ||
+    lower.includes('budget') ||
+    lower.includes('under') ||
+    lower.includes('3000') ||
+    lower.includes('3,000') ||
+    lower.includes('show') ||
+    lower.includes('find')
+  ) {
+    const res = commerce.searchProducts({ query: 'travel', maxPriceInr: 3000 });
+    clientWs.send(
+      JSON.stringify({
+        type: 'dual_delivery',
+        tool: 'search_products',
+        args: { query: 'travel', maxPriceInr: 3000 },
+        result: res,
+        cart: commerce.getCart(),
+        simulatedSpeech:
+          'I found two great options under 3,000 rupees for travel: the TravelBeats X with 50-hour battery life for ₹2,799, and the SoundWave Pro for ₹2,499. Would you like me to add one to your cart?',
+      })
+    );
+  }
+  // 6. Dynamic catalog search fallback for any general queries
+  else {
+    const searchRes = commerce.searchProducts({ query: lower });
+    let spokenText = '';
+    if (searchRes.products.length > 0) {
+      const names = searchRes.products.slice(0, 2).map((p: any) => p.name).join(' and ');
+      spokenText = `I found ${searchRes.products.length} product${searchRes.products.length > 1 ? 's' : ''} matching your query, including ${names}. Would you like more details or help adding to your cart?`;
+    } else {
+      const allRes = commerce.searchProducts({});
+      searchRes.products = allRes.products;
+      searchRes.count = allRes.count;
+      spokenText = `Here is our featured audio catalog. Let me know if you would like recommendations for travel, ANC, or long battery life!`;
+    }
+    clientWs.send(
+      JSON.stringify({
+        type: 'dual_delivery',
+        tool: 'search_products',
+        args: { query },
+        result: searchRes,
+        cart: commerce.getCart(),
+        simulatedSpeech: spokenText,
       })
     );
   }

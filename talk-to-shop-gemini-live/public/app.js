@@ -7,6 +7,7 @@
   let audioCtx = null;
   let micStream = null;
   let scriptProcessor = null;
+  let speechRecognizer = null;
   let isRecording = false;
   let isSimulated = false;
 
@@ -22,6 +23,8 @@
   const visualizer = document.getElementById('visualizer-bars');
   const voiceHeading = document.getElementById('voice-heading');
   const voiceSubheading = document.getElementById('voice-subheading');
+  const textQueryForm = document.getElementById('text-query-form');
+  const textQueryInput = document.getElementById('text-query-input');
   const productGrid = document.getElementById('product-grid');
   const productCountBadge = document.getElementById('product-count-badge');
   const cartList = document.getElementById('cart-items-list');
@@ -347,8 +350,50 @@
       return;
     }
 
+    // 2. In Simulation Mode, initialize browser speech-to-text recognition if available
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (isSimulated && SpeechRec) {
+      try {
+        speechRecognizer = new SpeechRec();
+        speechRecognizer.continuous = true;
+        speechRecognizer.interimResults = true;
+        speechRecognizer.lang = 'en-US';
+
+        speechRecognizer.onresult = (event) => {
+          let interim = '';
+          let final = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              final += event.results[i][0].transcript;
+            } else {
+              interim += event.results[i][0].transcript;
+            }
+          }
+          if (interim) {
+            voiceHeading.textContent = `"${interim}"`;
+          }
+          if (final && final.trim()) {
+            const query = final.trim();
+            voiceHeading.textContent = `"${query}"`;
+            logTelemetry('user', `Spoken query: "${query}"`);
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'simulate_query', text: query }));
+            }
+          }
+        };
+
+        speechRecognizer.onerror = (e) => {
+          console.warn('Speech recognition warning:', e.error);
+        };
+
+        speechRecognizer.start();
+      } catch (err) {
+        console.warn('Could not start speech recognition:', err);
+      }
+    }
+
     try {
-      // 2. Request microphone stream without sampleRate constraints
+      // 3. Request microphone stream without sampleRate constraints
       // (iOS Safari / WebKit rejects sampleRate in getUserMedia with OverconstrainedError)
       try {
         micStream = await navigator.mediaDevices.getUserMedia({
@@ -371,7 +416,7 @@
         if (!isRecording) return;
         const inputData = e.inputBuffer.getChannelData(0);
 
-        // Dynamically resample device sample rate (e.g. 44.1kHz or 48kHz on iPad) down to 16kHz Int16 PCM
+        // Dynamically resample device sample rate (e.g. 44.1kHz or 48kHz on Mac/iPad) down to 16kHz Int16 PCM
         const int16 = resampleAudioTo16k(inputData, audioCtx.sampleRate);
 
         // Base64 encode
@@ -387,26 +432,32 @@
         }
       };
 
+      // Route through a muted GainNode to prevent microphone audio from feeding into Mac speakers,
+      // avoiding feedback howl and macOS CoreAudio feedback suppression/ducking.
+      const muteNode = audioCtx.createGain();
+      muteNode.gain.value = 0;
       source.connect(scriptProcessor);
-      scriptProcessor.connect(audioCtx.destination);
+      scriptProcessor.connect(muteNode);
+      muteNode.connect(audioCtx.destination);
 
       isRecording = true;
       micBtn.classList.add('active');
       visualizer.classList.add('active');
-      voiceHeading.textContent = 'Listening to you...';
-      voiceSubheading.textContent = 'Speak naturally, e.g. "Add TravelBeats X to cart"';
-      logTelemetry('user', `Microphone active (${audioCtx.sampleRate}Hz -> 16kHz PCM). Streaming audio to Gemini.`);
+      voiceHeading.textContent = isSimulated ? 'Listening to you...' : 'Listening to you (Gemini Live)...';
+      voiceSubheading.textContent = 'Speak naturally, e.g. "Search travel headphones under ₹3,000"';
+      logTelemetry('user', `Microphone active (${audioCtx.sampleRate}Hz -> 16kHz PCM). Ready for voice input.`);
     } catch (err) {
       console.error('Microphone access failed:', err);
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         showMicHelpModal(
           'Microphone Permission Required',
-          `<p>The browser blocked microphone access.</p>
-           <p style="margin-top:8px"><strong>How to enable on your iPad / iPhone:</strong></p>
+          `<p>The browser blocked microphone access on <strong>localhost:3000</strong>.</p>
+           <p style="margin-top:8px"><strong>How to enable on your Mac / Mobile:</strong></p>
            <ul style="margin:8px 0 8px 20px;line-height:1.6">
-             <li>Ensure this page is opened over <strong>HTTPS</strong> (iOS blocks microphones over HTTP).</li>
-             <li>Check <strong>Settings &rarr; Safari &rarr; Microphone &rarr; Allow</strong>.</li>
-             <li>Tap the <strong>aA</strong> icon in the Safari address bar &rarr; <em>Website Settings</em> &rarr; set Microphone to <em>Allow</em>.</li>
+             <li>In <strong>Chrome</strong>: Click the site settings icon (left of the address bar) &rarr; set <strong>Microphone</strong> to <strong>Allow</strong> &rarr; refresh.</li>
+             <li>In <strong>Safari</strong>: Menu <em>Safari</em> &rarr; <em>Settings for this Website</em> &rarr; Microphone &rarr; <strong>Allow</strong>.</li>
+             <li>In <strong>macOS System Settings</strong>: <em>Privacy &amp; Security &rarr; Microphone</em> &rarr; ensure your browser is enabled.</li>
+             <li>On <strong>iPad / Mobile</strong>: Ensure connection is over <strong>HTTPS</strong> (use <code>npm run tunnel</code>).</li>
            </ul>`
         );
       } else if (err.name === 'SecurityError' || !window.isSecureContext) {
@@ -422,8 +473,14 @@
     micBtn.classList.remove('active');
     visualizer.classList.remove('active');
     voiceHeading.textContent = 'Tap Mic to Start Talking';
-    voiceSubheading.textContent = 'Or use the 1-click Demo Triggers below';
+    voiceSubheading.textContent = 'Or type in the box below / use the 1-click Demo Triggers';
 
+    if (speechRecognizer) {
+      try {
+        speechRecognizer.stop();
+      } catch (e) {}
+      speechRecognizer = null;
+    }
     if (scriptProcessor) {
       scriptProcessor.disconnect();
       scriptProcessor = null;
@@ -490,6 +547,27 @@
     });
   }
 
+  // Text Query Form Submission
+  if (textQueryForm && textQueryInput) {
+    textQueryForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const query = textQueryInput.value.trim();
+      if (!query) return;
+
+      logTelemetry('user', `Typed query: "${query}"`);
+      voiceHeading.textContent = `"${query}"`;
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        if (isSimulated) {
+          ws.send(JSON.stringify({ type: 'simulate_query', text: query }));
+        } else {
+          ws.send(JSON.stringify({ type: 'text_query', text: query }));
+        }
+      }
+      textQueryInput.value = '';
+    });
+  }
+
   triggerPills.forEach((pill) => {
     pill.addEventListener('click', () => {
       const query = pill.getAttribute('data-query');
@@ -522,7 +600,29 @@
     },
   };
 
+  // Load Initial Product Catalog & Cart on Page Load
+  async function loadInitialCatalog() {
+    try {
+      const res = await fetch('/api/products');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.products && data.products.length > 0) {
+          renderProducts(data.products);
+          logTelemetry('system', `Initial catalogue loaded (${data.products.length} products).`);
+        }
+      }
+      const cartRes = await fetch('/api/cart');
+      if (cartRes.ok) {
+        const cartData = await cartRes.json();
+        renderCart(cartData);
+      }
+    } catch (err) {
+      console.warn('Could not load initial catalog:', err);
+    }
+  }
+
   // Initial Boot
   connectWebSocket();
   checkInsecureContext();
+  loadInitialCatalog();
 })();
