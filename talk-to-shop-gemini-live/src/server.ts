@@ -16,8 +16,24 @@ const rootDir = path.resolve(__dirname, '..');
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const GEMINI_LIVE_MODEL = process.env.GEMINI_LIVE_MODEL || 'gemini-2.5-flash-native-audio-preview-12-2025';
+// gemini-3.1-flash-live-preview answers in ~1s; the 2.5 native-audio model takes 3-5s on the same audio.
+const GEMINI_LIVE_MODEL = process.env.GEMINI_LIVE_MODEL || 'gemini-3.1-flash-live-preview';
 const GEMINI_LIVE_VOICE = process.env.GEMINI_LIVE_VOICE || 'Aoede';
+
+// Latency tuning for the Live API session.
+// - Thinking: 3.x models take `thinkingLevel`, 2.5 models take `thinkingBudget` (0 = off).
+// - VAD: HIGH end-of-speech sensitivity + a short silence window commits the user's turn sooner.
+const THINKING_CONFIG = /gemini-3\./.test(GEMINI_LIVE_MODEL)
+  ? { thinkingLevel: 'MINIMAL' }
+  : { thinkingBudget: 0 };
+const REALTIME_INPUT_CONFIG = {
+  automaticActivityDetection: {
+    startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
+    endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
+    prefixPaddingMs: 20,
+    silenceDurationMs: 300,
+  },
+};
 
 const app = Fastify({ logger: false });
 
@@ -149,7 +165,8 @@ app.get('/ws/live', { websocket: true }, (connection, req) => {
 
   // Connect to Google Gemini Live API native WebSocket (v1beta)
   const geminiWsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${GEMINI_API_KEY}`;
-  const geminiWs = new WebSocket(geminiWsUrl);
+  // permessage-deflate only burns CPU (and adds latency) compressing already-dense base64 audio frames.
+  const geminiWs = new WebSocket(geminiWsUrl, { perMessageDeflate: false });
 
   geminiWs.on('open', () => {
     console.log('[Proxy] Connected to Gemini Live API WebSocket');
@@ -161,6 +178,7 @@ app.get('/ws/live', { websocket: true }, (connection, req) => {
         model: `models/${GEMINI_LIVE_MODEL}`,
         generationConfig: {
           responseModalities: ['AUDIO'],
+          thinkingConfig: THINKING_CONFIG,
           speechConfig: {
             voiceConfig: {
               prebuiltVoiceConfig: {
@@ -169,6 +187,7 @@ app.get('/ws/live', { websocket: true }, (connection, req) => {
             },
           },
         },
+        realtimeInputConfig: REALTIME_INPUT_CONFIG,
         systemInstruction: {
           parts: [
             {
@@ -276,32 +295,20 @@ app.get('/ws/live', { websocket: true }, (connection, req) => {
       }
 
       if (msg.type === 'audio_chunk') {
-        // Forward client microphone chunk (16kHz PCM base64) to Gemini
-        const clientChunk = {
-          realtimeInput: {
-            mediaChunks: [
-              {
-                mimeType: 'audio/pcm;rate=16000',
-                data: msg.data,
-              },
-            ],
-          },
-        };
-        geminiWs.send(JSON.stringify(clientChunk));
+        // Forward client microphone chunk (16kHz PCM base64) to Gemini.
+        // `realtimeInput.audio` replaces the deprecated `mediaChunks`.
+        geminiWs.send(
+          JSON.stringify({
+            realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: msg.data } },
+          })
+        );
+      } else if (msg.type === 'audio_stream_end') {
+        // Mic was turned off. Without this the server VAD never sees trailing silence,
+        // never commits the turn, and the model simply never answers.
+        geminiWs.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }));
       } else if (msg.type === 'text_query' || msg.type === 'simulate_query') {
-        // Optional text input injection for live demo convenience
-        const textMsg = {
-          clientContent: {
-            turns: [
-              {
-                role: 'user',
-                parts: [{ text: msg.text }],
-              },
-            ],
-            turnComplete: true,
-          },
-        };
-        geminiWs.send(JSON.stringify(textMsg));
+        // Mid-session text goes through realtimeInput (clientContent is only for seeding history on 3.x).
+        geminiWs.send(JSON.stringify({ realtimeInput: { text: msg.text } }));
       }
     } catch (e) {
       // Binary or invalid JSON
@@ -315,8 +322,8 @@ app.get('/ws/live', { websocket: true }, (connection, req) => {
     }
   });
 
-  geminiWs.on('close', () => {
-    console.log('[Proxy] Gemini Live API connection closed');
+  geminiWs.on('close', (code, reason) => {
+    console.log(`[Proxy] Gemini Live API connection closed (code=${code} reason=${reason.toString()})`);
     clientWs.send(JSON.stringify({ type: 'status', text: 'Gemini session closed. Running in fallback mode.', simulation: true, connected: false }));
   });
 

@@ -18,10 +18,10 @@
   let currentSourceType = 'idle'; // 'mic' | 'ai' | 'ai_synthetic' | 'idle'
   let peakLevel = 0;
 
-  // Audio Playback Queue (24kHz PCM from Gemini)
-  let audioQueue = [];
-  let isPlaying = false;
-  let currentAudioSource = null;
+  // Audio playback (24kHz PCM from Gemini): every chunk is scheduled on the AudioContext clock
+  // right after the previous one, instead of waiting for `onended` (which leaves a gap per chunk).
+  let nextPlayTime = 0;
+  const activeSources = new Set();
 
   // DOM Elements
   const connectionPill = document.getElementById('connection-pill');
@@ -447,50 +447,36 @@
     const buffer = audioCtx.createBuffer(1, float32.length, 24000);
     buffer.copyToChannel(float32, 0);
 
-    audioQueue.push(buffer);
-    if (!isPlaying) {
-      playNextInQueue();
-    }
-  }
-
-  function playNextInQueue() {
-    if (audioQueue.length === 0) {
-      isPlaying = false;
-      if (!isRecording) currentSourceType = 'idle';
-      return;
-    }
-    isPlaying = true;
-    currentSourceType = 'ai';
-    const buffer = audioQueue.shift();
     const source = audioCtx.createBufferSource();
     source.buffer = buffer;
     source.connect(audioCtx.destination);
-
     const analyser = getAnalyser();
     if (analyser) {
       source.connect(analyser);
     }
-    currentAudioSource = source;
 
+    // Small lead on the first chunk absorbs scheduling jitter; later chunks chain back-to-back.
+    const startAt = Math.max(nextPlayTime, audioCtx.currentTime + 0.02);
+    source.start(startAt);
+    nextPlayTime = startAt + buffer.duration;
+
+    activeSources.add(source);
+    currentSourceType = 'ai';
     source.onended = () => {
-      currentAudioSource = null;
-      if (audioQueue.length === 0 && !isRecording) {
-        currentSourceType = 'idle';
-      }
-      playNextInQueue();
+      activeSources.delete(source);
+      if (activeSources.size === 0 && !isRecording) currentSourceType = 'idle';
     };
-    source.start();
   }
 
   function flushAudioQueue() {
-    if (currentAudioSource) {
+    for (const source of activeSources) {
+      source.onended = null;
       try {
-        currentAudioSource.stop();
+        source.stop();
       } catch (e) {}
-      currentAudioSource = null;
     }
-    audioQueue = [];
-    isPlaying = false;
+    activeSources.clear();
+    nextPlayTime = 0;
     if (!isRecording) currentSourceType = 'idle';
   }
 
@@ -654,6 +640,7 @@
   }
 
   function stopRecording() {
+    const wasRecording = isRecording;
     isRecording = false;
     currentSourceType = 'idle';
     micBtn.classList.remove('active');
@@ -674,6 +661,10 @@
     if (micStream) {
       micStream.getTracks().forEach((t) => t.stop());
       micStream = null;
+    }
+    // Tell Gemini the audio stream ended so it commits the turn now (no trailing silence will ever arrive).
+    if (wasRecording && ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'audio_stream_end' }));
     }
     logTelemetry('user', 'Microphone stopped.');
   }

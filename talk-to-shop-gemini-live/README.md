@@ -52,7 +52,7 @@ Open `.env` and add your Google AI Studio API key:
 ```env
 GEMINI_API_KEY=AIzaSy...
 PORT=3000
-GEMINI_LIVE_MODEL=gemini-2.5-flash-native-audio-preview-12-2025
+GEMINI_LIVE_MODEL=gemini-3.1-flash-live-preview
 GEMINI_LIVE_VOICE=Aoede
 ```
 *(Note: If you run without a `GEMINI_API_KEY`, the application automatically launches in **Simulation Mode**, allowing you to test all commerce tools and the Dual Delivery UI with simulated voice and 1-click demo triggers!)*
