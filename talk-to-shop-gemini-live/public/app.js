@@ -192,6 +192,11 @@
     }
   }
 
+  // Battery is stored in hours; show days for long-lasting devices (e.g. fitness bands).
+  function formatBattery(hours) {
+    return hours >= 72 ? `${Math.round(hours / 24)} days battery` : `${hours}h Battery`;
+  }
+
   function renderProducts(products) {
     productCountBadge.textContent = `${products.length} items`;
     if (!products || products.length === 0) {
@@ -214,8 +219,9 @@
           <h4 class="product-title">${p.name}</h4>
           <p class="product-desc">${p.description}</p>
           <div class="specs-row">
-            <span class="spec-pill">🔋 ${p.batteryHours}h Battery</span>
-            <span class="spec-pill">🎧 ${p.ancType}</span>
+            ${p.batteryHours ? `<span class="spec-pill">\u{1F50B} ${formatBattery(p.batteryHours)}</span>` : ''}
+            ${p.ancType ? `<span class="spec-pill">\u{1F3A7} ${p.ancType}</span>` : ''}
+            ${(p.highlights || []).map((h) => `<span class="spec-pill">${h}</span>`).join('')}
             <span class="spec-pill">⭐ ${p.rating} (${p.reviewsCount})</span>
           </div>
           <div class="card-footer">

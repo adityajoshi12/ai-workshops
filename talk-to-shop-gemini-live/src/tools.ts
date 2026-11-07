@@ -5,16 +5,28 @@
  * Gemini uses these declarations to generate structured functionCall events during the live audio stream.
  */
 
+import { CATALOGUE } from './catalogue.js';
+
+// Derived from the catalogue so new categories are automatically visible to Gemini.
+const CATEGORIES = [...new Set(Object.values(CATALOGUE).map((p) => p.category))];
+
 export const COMMERCE_FUNCTION_DECLARATIONS = [
   {
     name: 'search_products',
-    description: 'Searches the product catalogue for headphones, earbuds, or audio gear matching customer criteria (budget, battery life, ANC, tags).',
+    description:
+      'Searches the electronics catalogue (audio, smartphones, laptops, smartwatches, speakers, tablets, cameras, gaming, power banks, smart home) ' +
+      'by keywords, category, budget, battery life and noise cancellation. Prefer `category` when the user names a product type.',
     parameters: {
       type: 'OBJECT',
       properties: {
         query: {
           type: 'STRING',
-          description: 'Free-form keywords, e.g. "wireless headphones", "travel", "earbuds".',
+          description: 'Short keywords, ALL of which must match, e.g. "gaming", "travel", "5g camera". Omit when filtering by category only.',
+        },
+        category: {
+          type: 'STRING',
+          description: 'Restrict results to one product category.',
+          enum: CATEGORIES,
         },
         maxPriceInr: {
           type: 'NUMBER',
@@ -22,7 +34,7 @@ export const COMMERCE_FUNCTION_DECLARATIONS = [
         },
         minBatteryHours: {
           type: 'NUMBER',
-          description: 'Minimum required battery life in hours, e.g. 40.',
+          description: 'Minimum required battery life in hours, e.g. 40. Excludes products with no battery.',
         },
         ancRequired: {
           type: 'BOOLEAN',

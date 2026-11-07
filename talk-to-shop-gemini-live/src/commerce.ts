@@ -6,14 +6,20 @@
  * All operations execute through these validated, server-side functions.
  */
 
+import { CATALOGUE } from './catalogue.js';
+
 export interface Product {
   id: string;
   name: string;
   category: string;
   priceInr: number;
-  batteryHours: number;
-  ancType: string;
+  /** Omitted for products without a battery (e.g. security cameras). */
+  batteryHours?: number;
+  /** Audio products only. */
+  ancType?: string;
   weightGrams: number;
+  /** Short, category-specific spec lines shown as pills (e.g. screen, storage, camera). */
+  highlights?: string[];
   rating: number;
   reviewsCount: number;
   stock: number;
@@ -60,85 +66,29 @@ export interface Order {
 }
 
 // ----------------------------------------------------------------------------
-// Seeded Authoritative Product Catalogue
+// Search helpers
 // ----------------------------------------------------------------------------
-export const CATALOGUE: Record<string, Product> = {
-  prod_tb_x: {
-    id: 'prod_tb_x',
-    name: 'TravelBeats X',
-    category: 'wireless_headphones',
-    priceInr: 2799,
-    batteryHours: 50,
-    ancType: 'Hybrid ANC',
-    weightGrams: 255,
-    rating: 4.8,
-    reviewsCount: 1420,
-    stock: 8,
-    imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&q=80',
-    description: 'Foldable over-ear headphones engineered for frequent travellers with 50-hour playback and deep active noise cancellation.',
-    tags: ['travel', 'wireless', 'headphones', 'long-battery', 'anc', 'budget', 'airplane'],
-  },
-  prod_sw_pro: {
-    id: 'prod_sw_pro',
-    name: 'SoundWave Pro',
-    category: 'wireless_headphones',
-    priceInr: 2499,
-    batteryHours: 40,
-    ancType: 'Adaptive ANC',
-    weightGrams: 240,
-    rating: 4.6,
-    reviewsCount: 980,
-    stock: 14,
-    imageUrl: 'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=500&q=80',
-    description: 'Lightweight ergonomic travel headphones featuring adaptive noise cancellation and Bluetooth 5.3 multipoint pairing.',
-    tags: ['travel', 'wireless', 'headphones', 'multipoint', 'anc', 'budget'],
-  },
-  prod_af_lite: {
-    id: 'prod_af_lite',
-    name: 'AudioFlex Lite',
-    category: 'wireless_headphones',
-    priceInr: 1999,
-    batteryHours: 30,
-    ancType: 'Passive Noise Isolation',
-    weightGrams: 165,
-    rating: 4.3,
-    reviewsCount: 650,
-    stock: 24,
-    imageUrl: 'https://images.unsplash.com/photo-1484704849700-f032a568e944?w=500&q=80',
-    description: 'Ultra-lightweight on-ear wireless headphones with quick charge (10 mins = 5 hrs) and comfortable memory foam ear cushions.',
-    tags: ['wireless', 'headphones', 'lightweight', 'budget', 'casual'],
-  },
-  prod_ab_active: {
-    id: 'prod_ab_active',
-    name: 'AeroBuds Active',
-    category: 'tws_earbuds',
-    priceInr: 2299,
-    batteryHours: 36,
-    ancType: 'Environmental Noise Cancellation (ENC)',
-    weightGrams: 45,
-    rating: 4.5,
-    reviewsCount: 820,
-    stock: 18,
-    imageUrl: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=500&q=80',
-    description: 'Pocket-sized True Wireless Earbuds with IPX5 sweat resistance, low-latency gaming mode, and 36-hour total battery with case.',
-    tags: ['wireless', 'earbuds', 'workout', 'commute', 'budget'],
-  },
-  prod_sm_elite: {
-    id: 'prod_sm_elite',
-    name: 'StudioMax Elite',
-    category: 'audiophile_headphones',
-    priceInr: 4499,
-    batteryHours: 60,
-    ancType: 'Pro Active Noise Cancellation',
-    weightGrams: 280,
-    rating: 4.9,
-    reviewsCount: 310,
-    stock: 5,
-    imageUrl: 'https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=500&q=80',
-    description: 'Premium Hi-Res certified studio wireless headphones with titanium 40mm drivers and lossless spatial audio.',
-    tags: ['audiophile', 'wireless', 'headphones', 'studio', 'premium', 'high-end'],
-  },
-};
+const STOPWORDS = new Set(['for', 'the', 'and', 'with', 'under', 'best', 'some', 'any']);
+
+/** Lowercase keywords with trailing plural 's' dropped, so "smartwatches" matches "smartwatch". */
+function tokenize(query?: string): string[] {
+  return (query || '')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length > 2 && !STOPWORDS.has(t))
+    .map((t) => t.replace(/s$/, ''));
+}
+
+/** Everything a keyword can match against, built once per product. */
+const haystackCache = new Map<string, string>();
+function haystack(p: Product): string {
+  let h = haystackCache.get(p.id);
+  if (!h) {
+    h = [p.name, p.category.replace(/_/g, ' '), p.description, ...p.tags, ...(p.highlights ?? [])].join(' ').toLowerCase();
+    haystackCache.set(p.id, h);
+  }
+  return h;
+}
 
 // ----------------------------------------------------------------------------
 // Authoritative Customer Saved Addresses
@@ -187,19 +137,14 @@ class CommerceStore {
     minBatteryHours?: number;
     ancRequired?: boolean;
   }): { count: number; products: Product[] } {
-    const q = (params.query || '').toLowerCase().trim();
+    const tokens = tokenize(params.query);
     const results = Object.values(CATALOGUE).filter((p) => {
       if (params.category && p.category !== params.category) return false;
       if (params.maxPriceInr && p.priceInr > params.maxPriceInr) return false;
-      if (params.minBatteryHours && p.batteryHours < params.minBatteryHours) return false;
-      if (params.ancRequired && !p.ancType.toLowerCase().includes('anc')) return false;
+      if (params.minBatteryHours && (p.batteryHours ?? 0) < params.minBatteryHours) return false;
+      if (params.ancRequired && !(p.ancType ?? '').toLowerCase().includes('anc')) return false;
 
-      if (!q) return true;
-      return (
-        p.name.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q) ||
-        p.tags.some((t) => t.includes(q))
-      );
+      return tokens.every((t) => haystack(p).includes(t));
     });
 
     return {
@@ -222,6 +167,7 @@ class CommerceStore {
         priceSpreadInr: products.map((p) => ({ name: p.name, price: p.priceInr })),
         batteryComparisonHours: products.map((p) => ({ name: p.name, batteryHours: p.batteryHours })),
         noiseCancellation: products.map((p) => ({ name: p.name, anc: p.ancType })),
+        keySpecs: products.map((p) => ({ name: p.name, highlights: p.highlights })),
         recommendation: products.length > 0 ? products[0].name : 'None',
       },
     };
