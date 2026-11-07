@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "tunnel": "cloudflared tunnel --url http://localhost:3000 || npx localtunnel --port 3000"
   },
   "dependencies": {
     "@fastify/static": "^8.0.4",

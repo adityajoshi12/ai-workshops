@@ -718,3 +718,108 @@ body {
   line-height: 1.5;
   margin-bottom: 20px;
 }
+
+/* Insecure Context Warning Banner (Mobile / HTTP) */
+.insecure-banner {
+  background: #FEF7E0;
+  border-bottom: 1px solid #F9AB00;
+  color: #7A5900;
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.banner-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.banner-text {
+  flex: 1;
+}
+
+.banner-text code {
+  background: rgba(0,0,0,0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+
+.banner-btn {
+  background: #F9AB00;
+  color: #202124;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.banner-btn:hover {
+  opacity: 0.9;
+}
+
+/* Mic Help Modal Extra Styles */
+.mic-help-box {
+  max-width: 500px;
+  text-align: left;
+}
+
+.modal-icon.warning-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #FEF7E0;
+  color: #B06000;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px auto;
+}
+
+.mic-modal-content {
+  font-size: 14px;
+  color: var(--text-sub);
+  line-height: 1.5;
+  margin: 14px 0 20px 0;
+}
+
+.mic-modal-content p {
+  margin-bottom: 8px;
+}
+
+.mic-modal-content strong {
+  color: var(--text-main);
+}
+
+.code-step {
+  background: #F1F3F4;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 10px 0;
+}
+
+.code-step pre {
+  margin: 6px 0 4px 0;
+  background: #202124;
+  color: #34A853;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  overflow-x: auto;
+}
+
+.code-step code {
+  font-family: 'JetBrains Mono', monospace;
+}

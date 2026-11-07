@@ -65,6 +65,25 @@ npm run dev
 Open your browser at:
 👉 **`http://localhost:3000`**
 
+### 4. Testing on iPad, iPhone, or Mobile Devices (HTTPS Tunnel)
+
+> 🔒 **Mobile Browser Security Requirement**: Apple (iOS/iPadOS Safari) and Google (Android Chrome) strictly block the microphone `getUserMedia` API on insecure `http://` IP addresses (e.g. `http://192.168.x.x:3000`), even when permissions are toggled ON in iOS device settings.
+>
+> To test on an iPad or phone with full voice support, expose the local server over an instant secure HTTPS tunnel:
+
+```bash
+# In a second terminal tab:
+npm run tunnel
+
+# Or via Cloudflare Tunnel:
+cloudflared tunnel --url http://localhost:3000
+
+# Or via localtunnel:
+npx localtunnel --port 3000
+```
+
+Open the resulting `https://...` link on your iPad or phone. iOS Safari will prompt for microphone permission and allow recording seamlessly!
+
 ---
 
 ## 🎙️ Live Demo Script (6–8 Minutes)

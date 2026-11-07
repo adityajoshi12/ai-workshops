@@ -39,6 +39,53 @@
   const closeModalBtn = document.getElementById('close-modal-btn');
   const triggerPills = document.querySelectorAll('.trigger-pill');
 
+  // Microphone & Insecure Context Modal Elements
+  const micHelpModal = document.getElementById('mic-help-modal');
+  const micModalTitle = document.getElementById('mic-modal-title');
+  const micModalBody = document.getElementById('mic-modal-body');
+  const closeMicModalBtn = document.getElementById('close-mic-modal-btn');
+  const insecureBanner = document.getElementById('insecure-context-banner');
+  const bannerHelpBtn = document.getElementById('banner-help-btn');
+
+  function showMicHelpModal(title, htmlContent) {
+    if (micModalTitle && micModalBody && micHelpModal) {
+      micModalTitle.textContent = title;
+      micModalBody.innerHTML = htmlContent;
+      micHelpModal.classList.add('open');
+    } else {
+      alert(title + '\n\n' + htmlContent.replace(/<[^>]+>/g, ''));
+    }
+  }
+
+  function showInsecureHelp() {
+    showMicHelpModal(
+      'HTTPS Required on iPad & Mobile',
+      `<p>You are accessing the workshop at <strong>http://${window.location.host}</strong>.</p>
+       <p style="margin-top:8px">Apple (iOS/iPadOS Safari) and Google (Android Chrome) strictly block microphone access on insecure <code>http://</code> network addresses, even when microphone permissions are toggled ON in device settings.</p>
+       <div class="code-step">
+         <strong>To enable microphone recording on your iPad/phone:</strong>
+         <p style="margin-top:6px;font-size:13px">Run this command on your computer to get an instant HTTPS link:</p>
+         <pre><code>npm run tunnel</code></pre>
+         <span style="font-size:12px;color:var(--text-sub)">Or: <code>cloudflared tunnel --url http://localhost:3000</code></span>
+       </div>
+       <p style="margin-top:10px">Open the resulting <code>https://...</code> link on your iPad or phone. Microphone permissions will be accepted immediately!</p>`
+    );
+  }
+
+  function checkInsecureContext() {
+    const isLocalhost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+    const isHttps = window.location.protocol === 'https:';
+    const isSecure = window.isSecureContext && (isHttps || isLocalhost);
+
+    if (!isSecure && !isLocalhost && insecureBanner) {
+      insecureBanner.style.display = 'flex';
+      logTelemetry(
+        'system',
+        '⚠️ Connected over insecure HTTP (' + window.location.host + '). iOS Safari and mobile browsers require HTTPS for microphone capture.'
+      );
+    }
+  }
+
   function logTelemetry(type, msg) {
     const time = new Date().toLocaleTimeString('en-US', { hour12: false });
     const div = document.createElement('div');
@@ -267,20 +314,55 @@
   }
 
   // --------------------------------------------------------------------------
-  // Microphone Stream Capture (16kHz PCM to Gemini Live)
+  // Microphone Stream Capture & Universal 16kHz Resampling
   // --------------------------------------------------------------------------
+  function resampleAudioTo16k(inputData, fromSampleRate) {
+    if (!fromSampleRate || fromSampleRate === 16000) {
+      const int16 = new Int16Array(inputData.length);
+      for (let i = 0; i < inputData.length; i++) {
+        const s = Math.max(-1, Math.min(1, inputData[i]));
+        int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      }
+      return int16;
+    }
+
+    const ratio = fromSampleRate / 16000;
+    const outputLength = Math.round(inputData.length / ratio);
+    const int16 = new Int16Array(outputLength);
+
+    for (let i = 0; i < outputLength; i++) {
+      const srcIndex = Math.min(Math.round(i * ratio), inputData.length - 1);
+      const s = Math.max(-1, Math.min(1, inputData[srcIndex]));
+      int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    }
+    return int16;
+  }
+
   async function startRecording() {
     ensureAudioContext();
+
+    // 1. Guard against Insecure Context on mobile
+    if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showInsecureHelp();
+      return;
+    }
+
     try {
-      micStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          sampleRate: 16000,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      // 2. Request microphone stream without sampleRate constraints
+      // (iOS Safari / WebKit rejects sampleRate in getUserMedia with OverconstrainedError)
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+      } catch (constraintErr) {
+        console.warn('Advanced audio constraints rejected, falling back to basic audio:', constraintErr);
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
 
       const source = audioCtx.createMediaStreamSource(micStream);
       scriptProcessor = audioCtx.createScriptProcessor(2048, 1, 1);
@@ -289,12 +371,8 @@
         if (!isRecording) return;
         const inputData = e.inputBuffer.getChannelData(0);
 
-        // Convert Float32 to Int16 PCM
-        const int16 = new Int16Array(inputData.length);
-        for (let i = 0; i < inputData.length; i++) {
-          const s = Math.max(-1, Math.min(1, inputData[i]));
-          int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-        }
+        // Dynamically resample device sample rate (e.g. 44.1kHz or 48kHz on iPad) down to 16kHz Int16 PCM
+        const int16 = resampleAudioTo16k(inputData, audioCtx.sampleRate);
 
         // Base64 encode
         let binary = '';
@@ -317,10 +395,25 @@
       visualizer.classList.add('active');
       voiceHeading.textContent = 'Listening to you...';
       voiceSubheading.textContent = 'Speak naturally, e.g. "Add TravelBeats X to cart"';
-      logTelemetry('user', 'Microphone active. Streaming 16kHz PCM audio to Gemini.');
+      logTelemetry('user', `Microphone active (${audioCtx.sampleRate}Hz -> 16kHz PCM). Streaming audio to Gemini.`);
     } catch (err) {
-      console.error('Microphone access denied:', err);
-      alert('Could not access microphone. Please ensure microphone permissions are granted.');
+      console.error('Microphone access failed:', err);
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        showMicHelpModal(
+          'Microphone Permission Required',
+          `<p>The browser blocked microphone access.</p>
+           <p style="margin-top:8px"><strong>How to enable on your iPad / iPhone:</strong></p>
+           <ul style="margin:8px 0 8px 20px;line-height:1.6">
+             <li>Ensure this page is opened over <strong>HTTPS</strong> (iOS blocks microphones over HTTP).</li>
+             <li>Check <strong>Settings &rarr; Safari &rarr; Microphone &rarr; Allow</strong>.</li>
+             <li>Tap the <strong>aA</strong> icon in the Safari address bar &rarr; <em>Website Settings</em> &rarr; set Microphone to <em>Allow</em>.</li>
+           </ul>`
+        );
+      } else if (err.name === 'SecurityError' || !window.isSecureContext) {
+        showInsecureHelp();
+      } else {
+        showMicHelpModal('Microphone Error', `<p>${err.message || 'Could not access audio recording hardware.'}</p>`);
+      }
     }
   }
 
@@ -385,6 +478,18 @@
     orderModal.classList.remove('open');
   });
 
+  if (closeMicModalBtn) {
+    closeMicModalBtn.addEventListener('click', () => {
+      micHelpModal.classList.remove('open');
+    });
+  }
+
+  if (bannerHelpBtn) {
+    bannerHelpBtn.addEventListener('click', () => {
+      showInsecureHelp();
+    });
+  }
+
   triggerPills.forEach((pill) => {
     pill.addEventListener('click', () => {
       const query = pill.getAttribute('data-query');
@@ -419,4 +524,5 @@
 
   // Initial Boot
   connectWebSocket();
+  checkInsecureContext();
 })();

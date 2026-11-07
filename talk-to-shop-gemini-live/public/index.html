@@ -31,6 +31,15 @@
     </div>
   </header>
 
+  <!-- Insecure HTTP Mobile Warning Banner -->
+  <div id="insecure-context-banner" class="insecure-banner" style="display: none;">
+    <span class="banner-icon">🔒</span>
+    <span class="banner-text">
+      <strong>Mobile Mic Notice:</strong> Mobile browsers (iOS Safari &amp; Android Chrome) block microphone recording over plain <code>http://</code>. Access via HTTPS or an HTTPS tunnel to speak.
+    </span>
+    <button id="banner-help-btn" class="banner-btn">Fix on Mobile</button>
+  </div>
+
   <!-- Main Container -->
   <main class="main-layout">
 
@@ -176,6 +185,18 @@
       <div class="modal-summary" id="modal-summary"></div>
       
       <button class="primary-btn" id="close-modal-btn">Done</button>
+    </div>
+  </div>
+
+  <!-- Microphone & HTTPS Helper Modal -->
+  <div class="modal-backdrop" id="mic-help-modal">
+    <div class="modal-box mic-help-box">
+      <div class="modal-icon warning-icon">🔒</div>
+      <h2 id="mic-modal-title">Microphone Access Help</h2>
+      <div id="mic-modal-body" class="mic-modal-content">
+        <!-- Injected via JavaScript -->
+      </div>
+      <button class="primary-btn" id="close-mic-modal-btn">Got it</button>
     </div>
   </div>
 
