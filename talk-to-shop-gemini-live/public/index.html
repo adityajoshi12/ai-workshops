@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShopTalk AI — Voice E-Commerce Demo (Gemini Live API)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="logo-area">
+      <div class="gemini-sparkle">✦</div>
+      <div>
+        <h1>ShopTalk AI</h1>
+        <p class="subtitle">Voice-First E-Commerce Agent · Gemini Live API</p>
+      </div>
+    </div>
+    
+    <div class="header-status">
+      <span id="connection-pill" class="status-pill offline">
+        <span class="dot"></span> <span id="status-text">Disconnected</span>
+      </span>
+      <button id="reset-cart-btn" class="secondary-btn" title="Reset Demo State">
+        &#8635; Reset Demo
+      </button>
+    </div>
+  </header>
+
+  <!-- Insecure HTTP Mobile Warning Banner -->
+  <div id="insecure-context-banner" class="insecure-banner" style="display: none;">
+    <span class="banner-icon">🔒</span>
+    <span class="banner-text">
+      <strong>Mobile Mic Notice:</strong> Mobile browsers (iOS Safari &amp; Android Chrome) block microphone recording over plain <code>http://</code>. Access via HTTPS or an HTTPS tunnel to speak.
+    </span>
+    <button id="banner-help-btn" class="banner-btn">Fix on Mobile</button>
+  </div>
+
+  <!-- Main Container -->
+  <main class="main-layout">
+
+    <!-- Left Column: Voice Assistant & Dual Delivery Product Shelf -->
+    <section class="assistant-pane">
+      
+      <!-- Voice Interaction Card -->
+      <div class="voice-card">
+        <div class="mic-container">
+          <button id="mic-toggle-btn" class="mic-button" title="Click to Talk / Stop">
+            <svg class="mic-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+              <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+            </svg>
+          </button>
+          <div class="pulse-ring"></div>
+        </div>
+
+        <div class="voice-status-info">
+          <h2 id="voice-heading">Tap Mic to Start Talking</h2>
+          <p id="voice-subheading">"I need travel headphones under ₹3,000 with long battery."</p>
+        </div>
+
+        <!-- Real-Time Audio Frequency Spectrum & Signal Strength HUD -->
+        <div class="audio-frequency-hud" id="audio-frequency-hud" title="Live Audio Signal Strength & Frequency Spectrum">
+          <div class="hud-header">
+            <div class="hud-title-wrap">
+              <span class="hud-status-dot" id="hud-status-dot"></span>
+              <span class="hud-title">AUDIO SIGNAL</span>
+              <span class="hud-source-badge" id="hud-source-badge">IDLE</span>
+            </div>
+            <div class="hud-metric">
+              <span class="hud-db-value" id="hud-db-value">-60 dB</span>
+            </div>
+          </div>
+
+          <!-- Real-Time FFT Frequency Spectrum Canvas -->
+          <div class="hud-canvas-wrap">
+            <canvas id="frequency-canvas" width="240" height="48"></canvas>
+          </div>
+
+          <!-- Peak Signal Strength VU Meter Bar -->
+          <div class="hud-meter-wrap">
+            <div class="hud-meter-track">
+              <div class="hud-meter-bar" id="hud-meter-bar"></div>
+              <div class="hud-meter-peak" id="hud-meter-peak"></div>
+            </div>
+            <div class="hud-meter-scale">
+              <span>-60dB</span>
+              <span>-24dB</span>
+              <span>-12dB</span>
+              <span>-3dB</span>
+              <span>0dB</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Text Query Bar (Voice & Text Dual Input) -->
+      <form id="text-query-form" class="text-query-form">
+        <span class="search-input-icon">💬</span>
+        <input
+          type="text"
+          id="text-query-input"
+          class="text-query-input"
+          placeholder="Ask ShopTalk anything or search (e.g. 'Travel headphones under ₹3,000')..."
+          autocomplete="off"
+        />
+        <button type="submit" class="text-query-btn">Ask</button>
+      </form>
+
+      <!-- Quick Demo Triggers (For live stage walkthrough) -->
+      <div class="demo-triggers-bar">
+        <span class="trigger-label">Demo Triggers:</span>
+        <button class="trigger-pill" data-query="Search travel headphones under ₹3,000">
+          🔍 Search Travel &lt; ₹3k
+        </button>
+        <button class="trigger-pill" data-query="Compare TravelBeats X with SoundWave Pro">
+          ⚖️ Compare Top 2
+        </button>
+        <button class="trigger-pill" data-query="Add TravelBeats X to my cart">
+          🛒 Add to Cart
+        </button>
+        <button class="trigger-pill" data-query="Check delivery to pincode 560103">
+          🚚 Delivery 560103
+        </button>
+        <button class="trigger-pill" data-query="Confirm and place order">
+          ✅ Confirm &amp; Place Order
+        </button>
+      </div>
+
+      <!-- Dual Delivery Product Shelf -->
+      <div class="shelf-header">
+        <h3>Recommended Products <span id="product-count-badge" class="badge">0 items</span></h3>
+        <span class="dual-delivery-tag">Dual Delivery: Voice + Screen Synchronized</span>
+      </div>
+      
+      <div class="product-grid" id="product-grid">
+        <!-- Injected via JavaScript -->
+        <div class="empty-shelf">
+          <p>No products displayed yet. Start speaking or click a demo trigger above to search the catalogue.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Cart, Addresses & Live Telemetry -->
+    <aside class="sidebar-pane">
+
+      <!-- Shopping Cart Card -->
+      <div class="panel-card cart-card">
+        <div class="panel-header">
+          <h3>Shopping Cart</h3>
+          <span id="cart-item-count" class="badge">0 items</span>
+        </div>
+
+        <div class="cart-items-list" id="cart-items-list">
+          <p class="empty-text">Your cart is empty.</p>
+        </div>
+
+        <div class="cart-summary" id="cart-summary" style="display: none;">
+          <div class="summary-row">
+            <span>Subtotal</span>
+            <span id="subtotal-val">₹0</span>
+          </div>
+          <div class="summary-row">
+            <span>GST (18%)</span>
+            <span id="gst-val">₹0</span>
+          </div>
+          <div class="summary-row">
+            <span>Express Delivery</span>
+            <span id="shipping-val" class="free-tag">FREE</span>
+          </div>
+          <div class="summary-row total-row">
+            <span>Total</span>
+            <span id="total-val">₹0</span>
+          </div>
+          <button id="checkout-btn" class="primary-btn checkout-btn">
+            Place Order by Voice
+          </button>
+        </div>
+      </div>
+
+      <!-- Delivery Address Card -->
+      <div class="panel-card address-card">
+        <div class="panel-header">
+          <h3>Verified Delivery Address</h3>
+          <span class="badge default-badge">Default</span>
+        </div>
+        <div class="address-details" id="address-details">
+          <strong>Aditya Joshi</strong> · <span class="tag">Home</span>
+          <p>Flat 402, Green Glen Heights, Bellandur</p>
+          <p>Bengaluru, Karnataka — <strong>560103</strong></p>
+          <span class="lead-time">✓ Next-Day Express Delivery Guaranteed</span>
+        </div>
+      </div>
+
+      <!-- Live Tool Call Telemetry & Transcript -->
+      <div class="panel-card telemetry-card">
+        <div class="panel-header">
+          <h3>Live Telemetry &amp; Turns</h3>
+          <span class="live-dot">● REC</span>
+        </div>
+        <div class="telemetry-log" id="telemetry-log">
+          <div class="log-entry system">
+            <span class="time">[System]</span> Ready. Direct Gemini Live WebSocket proxy active.
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+  </main>
+
+  <!-- Order Confirmed Modal -->
+  <div class="modal-backdrop" id="order-modal">
+    <div class="modal-box">
+      <div class="success-icon">✓</div>
+      <h2>Order Confirmed!</h2>
+      <p id="modal-order-id" class="order-id">ORD-2026-784920</p>
+      <p id="modal-order-msg" class="order-msg">Your order has been verified by the backend and placed successfully.</p>
+      
+      <div class="modal-summary" id="modal-summary"></div>
+      
+      <button class="primary-btn" id="close-modal-btn">Done</button>
+    </div>
+  </div>
+
+  <!-- Microphone & HTTPS Helper Modal -->
+  <div class="modal-backdrop" id="mic-help-modal">
+    <div class="modal-box mic-help-box">
+      <div class="modal-icon warning-icon">🔒</div>
+      <h2 id="mic-modal-title">Microphone Access Help</h2>
+      <div id="mic-modal-body" class="mic-modal-content">
+        <!-- Injected via JavaScript -->
+      </div>
+      <button class="primary-btn" id="close-mic-modal-btn">Got it</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
