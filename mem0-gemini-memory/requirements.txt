@@ -1,0 +1,3 @@
+mem0ai
+google-genai
+python-dotenv

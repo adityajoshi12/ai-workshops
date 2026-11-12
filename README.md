@@ -12,6 +12,7 @@ Hands-on workshops for building AI agents with Google Gemini.
 | [`smart-email-agent/`](./smart-email-agent/) | Go · Google ADK · MCP | Gmail-backed inbox agent with sub-agent delegation |
 | [`agent-sandbox-gke/`](./agent-sandbox-gke/) | Python · Google ADK · GKE Agent Sandbox | Autonomous coding agent running inside gVisor-isolated Kubernetes sandboxes |
 | [`talk-to-shop-gemini-live/`](./talk-to-shop-gemini-live/) | TypeScript · Fastify · Gemini Live API · Web Audio | Voice-first e-commerce shopping agent with Dual Delivery UI and authoritative backend |
+| [`mem0-gemini-memory/`](./mem0-gemini-memory/) | Python · mem0 · Gemini | Chatbot with long-term memory that remembers you across runs |
 
 ---
 
@@ -58,6 +59,22 @@ npm run dev
 
 ---
 
+---
+
+## mem0-gemini-memory
+
+A short demo of long-term memory: mem0 stores facts from each chat, and Gemini answers using them. Quit, restart, and the bot still remembers you.
+
+- [Setup & walkthrough](./mem0-gemini-memory/README.md)
+
+```bash
+cd mem0-gemini-memory
+pip install -r requirements.txt
+python demo.py
+```
+
+---
+
 ## Author
 
 **Aditya Joshi** — [YouTube](https://www.youtube.com/@adityajoshi12) · [LinkedIn](https://www.linkedin.com/in/adityajoshi12) · [connect@adityajoshi.online](mailto:connect@adityajoshi.online)
@@ -70,3 +87,4 @@ npm run dev
 - **smart-email-agent**: Go, Node.js (for the Gmail MCP server), a Gemini API key + Gmail account
 - **agent-sandbox-gke**: Python 3.11+, GKE cluster with gVisor sandbox enabled, Gemini API key
 - **talk-to-shop-gemini-live**: Node.js 18+, a Gemini API key (supports Gemini 2.5 Flash Native Audio preview)
+- **mem0-gemini-memory**: Python 3.10+, a Gemini API key
