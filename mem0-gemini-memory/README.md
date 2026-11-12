@@ -35,7 +35,7 @@ You: What food do I like?
 Bot: You love biryani!
 ```
 
-Memories are saved to `.mem0_data/` (git-ignored). Delete that folder to reset the memory.
+Memories are saved to `.mem0_data/`.
 
 ## Troubleshooting
 
