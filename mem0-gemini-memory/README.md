@@ -35,9 +35,10 @@ You: What food do I like?
 Bot: You love biryani!
 ```
 
-Memories are saved to `.mem0_data/` (git-ignored). Delete that folder to reset the memory.
+Memories are saved to `.mem0_data/`.
 
 ## Troubleshooting
 
 - **`Developer instruction is not enabled for api version v1`**: the Gemini SDK defaults to `v1`. `demo.py` sets `GOOGLE_GENAI_API_VERSION=v1beta` for you, so keep that line.
-- **`spaCy is not installed` / `fastembed not installed`**: harmless. These are optional mem0 extras (better keyword search). The demo runs fine without them.
+- **`spaCy is not installed`**: fixed by `requirements.txt`, which installs `mem0ai[nlp]`. If you still see it, run `pip install "mem0ai[nlp]"`. Then run `python -m spacy download en_core_web_sm` once to get the English model.
+- **`fastembed not installed`**: harmless. It's an optional extra for better keyword search (`pip install "mem0ai[extras]"` if you want it). The demo runs fine without it.
