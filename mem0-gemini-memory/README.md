@@ -36,3 +36,8 @@ Bot: You love biryani!
 ```
 
 Memories are saved to `.mem0_data/` (git-ignored). Delete that folder to reset the memory.
+
+## Troubleshooting
+
+- **`Developer instruction is not enabled for api version v1`**: the Gemini SDK defaults to `v1`. `demo.py` sets `GOOGLE_GENAI_API_VERSION=v1beta` for you, so keep that line.
+- **`spaCy is not installed` / `fastembed not installed`**: harmless. These are optional mem0 extras (better keyword search). The demo runs fine without them.

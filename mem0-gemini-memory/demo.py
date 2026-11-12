@@ -3,11 +3,15 @@
 Run it once and tell the bot a few things about you. Quit, run it again,
 and ask "what do you know about me?" - it remembers across sessions.
 """
+import os
+
 from dotenv import load_dotenv
 from google import genai
 from mem0 import Memory
 
 load_dotenv()
+# The GenAI SDK defaults to the v1 API, which rejects system instructions (mem0 uses them).
+os.environ.setdefault("GOOGLE_GENAI_API_VERSION", "v1beta")
 
 MODEL = "gemini-2.5-flash"
 USER_ID = "workshop-user"
